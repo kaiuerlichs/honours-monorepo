@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace hmp {
+
 class NodeInfo {
 private:
   int process_rank;
@@ -22,12 +23,30 @@ public:
   ~NodeInfo() {};
 
   void print_info();
+  bool is_master();
+  int get_rank();
+};
+
+class WorldInfo {
+private:
+  int node_count;
+  int thread_count;
+  std::vector<std::shared_ptr<NodeInfo>> nodes;
+
+public:
+  WorldInfo() {};
+  ~WorldInfo() {};
+
+  void add_node(std::shared_ptr<NodeInfo>);
 };
 
 class MPICluster {
 private:
   std::shared_ptr<NodeInfo> self;
-  std::vector<NodeInfo> worldInfo;
+  std::unique_ptr<WorldInfo> world;
+
+  void send_node_info();
+  void receive_node_info();
 
 public:
   // Constructor/destructor

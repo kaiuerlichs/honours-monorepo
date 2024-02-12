@@ -21,9 +21,7 @@ void NodeInfo::load_rank() {
   process_rank = rank;
 }
 
-void NodeInfo::load_thread_count() {
-  thread_count = omp_get_max_threads();
-}
+void NodeInfo::load_thread_count() { thread_count = omp_get_max_threads(); }
 
 void NodeInfo::load_processor_name() {
   int name_length;
@@ -31,18 +29,31 @@ void NodeInfo::load_processor_name() {
 }
 
 void NodeInfo::print_info() {
-  std::printf("Node information for %s: Rank %i, Threads %i", processor_name, process_rank, thread_count);
+  std::printf("Node information for %s: Rank %i, Threads %i", processor_name,
+              process_rank, thread_count);
 }
 
+bool NodeInfo::is_master() { return process_rank == 0; }
+
+int NodeInfo::get_rank() { return process_rank; }
+
+void WorldInfo::add_node(std::shared_ptr<NodeInfo> node_ptr) {
+  nodes.push_back(node_ptr);
+}
 
 MPICluster::MPICluster() {
   MPI_Init(NULL, NULL);
   self = std::make_shared<NodeInfo>();
   self->print_info();
+
+  if (self->is_master()) {
+    world = std::make_unique<WorldInfo>();
+    world->add_node(self);
+  } else {
+  
+  }
 }
 
-MPICluster::~MPICluster() {
-  MPI_Finalize();
-}
+MPICluster::~MPICluster() { MPI_Finalize(); }
 
 } // namespace hmp
