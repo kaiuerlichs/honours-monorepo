@@ -1,13 +1,15 @@
-#include "mpi_cluster.h"
+#include "hmp.h"
 
 #include <cstddef>
+#include <cstdio>
+#include <memory>
 
 #include "mpi.h"
 #include "omp.h"
 
 namespace hmp {
 
-void NodeInfo::load_node_info() {
+NodeInfo::NodeInfo() {
   load_rank();
   load_thread_count();
   load_processor_name();
@@ -28,9 +30,15 @@ void NodeInfo::load_processor_name() {
   MPI_Get_processor_name(processor_name, &name_length);
 }
 
+void NodeInfo::print_info() {
+  std::printf("Node information for %s: Rank %i, Threads %i", processor_name, process_rank, thread_count);
+}
+
+
 MPICluster::MPICluster() {
   MPI_Init(NULL, NULL);
-  self.load_node_info();
+  self = std::make_shared<NodeInfo>();
+  self->print_info();
 }
 
 MPICluster::~MPICluster() {

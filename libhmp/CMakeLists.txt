@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES
-  src/mpi_cluster.cpp
+  src/hmp.cpp
 )
 
 add_library(hmp SHARED ${SOURCE_FILES})
@@ -44,8 +44,9 @@ if(MPI_LINK_FLAGS)
     LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif()
 
+# Add debug executable target
 set(DEBUG_FILES
-  src/main.cpp
+  src/debughmp.cpp
 )
 
 add_executable(debughmp ${SOURCE_FILES} ${DEBUG_FILES})

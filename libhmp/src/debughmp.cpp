@@ -1,5 +1,5 @@
 #include <iostream>
-#include "mpi_cluster.h"
+#include "hmp.h"
 
 int main() {
     hmp::MPICluster cluster = hmp::MPICluster();
