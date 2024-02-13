@@ -25,6 +25,7 @@ public:
   void print_info();
   bool is_master();
   int get_rank();
+  MPI_Datatype get_mpi_type();
 };
 
 class WorldInfo {
@@ -34,10 +35,12 @@ private:
   std::vector<std::shared_ptr<NodeInfo>> nodes;
 
 public:
-  WorldInfo() {};
+  WorldInfo();
   ~WorldInfo() {};
 
   void add_node(std::shared_ptr<NodeInfo>);
+  int get_node_count();
+  void print_info();
 };
 
 class MPICluster {
