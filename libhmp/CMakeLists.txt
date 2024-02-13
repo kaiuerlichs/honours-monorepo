@@ -1,54 +1,54 @@
-cmake_minimum_required(VERSION 3.24)
-project(HybridMultiprocessingPatterns)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Set the C++ standard you are using (e.g., C++11, C++14, C++17)
+# Set minimum versions for C++ and CMake
+cmake_minimum_required(VERSION 3.20...3.24)
 set(CMAKE_CXX_STANDARD 20)
 
-set(SOURCE_FILES
-  src/hmp.cpp
-)
+# Export compile commands for LSP support
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_library(hmp SHARED ${SOURCE_FILES})
 
+# Define project
+project(HybridMultiprocessingPatterns)
 include_directories(
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
 )
 
+
+#Load dependencies
 find_package(OpenMP)
+if(NOT OpenMP_CXX_FOUND) # On M2 Apple chips, CMake cannot find OpenMP
+  include_directories(/opt/homebrew/opt/libomp/include)
+  link_directories(/opt/homebrew/opt/libomp/lib)
+endif()
+
+find_package(MPI REQUIRED)
+include_directories(${MPI_INCLUDE_PATH})
+
+
+# TARGET: hmp (Library)
+set(SOURCE_FILES
+  src/hmp.cpp
+)
+
+add_library(hmp SHARED ${SOURCE_FILES})
 if(OpenMP_CXX_FOUND)
     target_link_libraries(hmp OpenMP::OpenMP_CXX)
 else()
-    # Manual setup for OpenMP using libomp installed via Homebrew
-    include_directories(/opt/homebrew/opt/libomp/include)
-    link_directories(/opt/homebrew/opt/libomp/lib)
     target_link_libraries(hmp "/opt/homebrew/opt/libomp/lib/libomp.dylib")
 endif()
-
-# Find OpenMPI
-find_package(MPI REQUIRED)
-include_directories(${MPI_INCLUDE_PATH})
 target_link_libraries(hmp ${MPI_LIBRARIES})
 
-# If your MPI implementation requires specific compilation flags, apply them to the library
-if(MPI_COMPILE_FLAGS)
-  set_target_properties(hmp PROPERTIES
-    COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-endif()
 
-# If your MPI implementation requires specific linking flags, apply them to the library
-if(MPI_LINK_FLAGS)
-  set_target_properties(hmp PROPERTIES
-    LINK_FLAGS "${MPI_LINK_FLAGS}")
-endif()
-
-# Add debug executable target
+# TARGET: debughmp (Debug executable)
 set(DEBUG_FILES
   src/debughmp.cpp
 )
 
 add_executable(debughmp ${SOURCE_FILES} ${DEBUG_FILES})
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(debughmp OpenMP::OpenMP_CXX)
+else()
+    target_link_libraries(debughmp "/opt/homebrew/opt/libomp/lib/libomp.dylib")
+endif()
 target_link_libraries(debughmp ${MPI_LIBRARIES})
-target_link_libraries(debughmp "/opt/homebrew/opt/libomp/lib/libomp.dylib")
+
