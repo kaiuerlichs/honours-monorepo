@@ -9,8 +9,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Define project
 project(HybridMultiprocessingPatterns)
 include_directories(
-        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/include 
+        ${PROJECT_SOURCE_DIR}/include/hmp
         ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/hmp
 )
 
 
@@ -28,6 +30,8 @@ include_directories(${MPI_INCLUDE_PATH})
 # TARGET: hmp (Library)
 set(SOURCE_FILES
   src/hmp.cpp
+  src/hmp/map.cpp
+  src/hmp/utils.cpp
 )
 
 add_library(hmp SHARED ${SOURCE_FILES})
