@@ -27,28 +27,12 @@ find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 
 
-# TARGET: hmp (Library)
-set(SOURCE_FILES
-  src/hmp.cpp
-  src/hmp/map.cpp
-  src/hmp/utils.cpp
-)
-
-add_library(hmp SHARED ${SOURCE_FILES})
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(hmp OpenMP::OpenMP_CXX)
-else()
-    target_link_libraries(hmp "/opt/homebrew/opt/libomp/lib/libomp.dylib")
-endif()
-target_link_libraries(hmp ${MPI_LIBRARIES})
-
-
 # TARGET: debughmp (Debug executable)
 set(DEBUG_FILES
   src/debughmp.cpp
 )
 
-add_executable(debughmp ${SOURCE_FILES} ${DEBUG_FILES})
+add_executable(debughmp ${DEBUG_FILES})
 if(OpenMP_CXX_FOUND)
     target_link_libraries(debughmp OpenMP::OpenMP_CXX)
 else()
