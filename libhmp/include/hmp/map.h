@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "hmp.h"
-#include "hmp/typeutil.h"
+#include "hmp/mpi_type_traits.h"
 
 #include "mpi.h"
 
@@ -26,9 +26,13 @@ private:
   std::vector<int> elements_per_node;
   std::vector<int> displacements_per_node;
 
+  MPI_Datatype mpi_in_type;
+  MPI_Datatype mpi_out_type;
+
   void prepare_data(std::vector<IN_TYPE> &data);
   void run_map_function(std::function<OUT_TYPE(IN_TYPE)> map_function);
   void gather_data();
+  void load_mpi_types();
 
 public:
   Map(std::shared_ptr<MPICluster> cluster_ptr);
@@ -36,6 +40,8 @@ public:
 
   std::vector<OUT_TYPE> execute(std::vector<IN_TYPE> &data,
                                 std::function<OUT_TYPE(IN_TYPE)> map_function);
+  void set_mpi_in_type(MPI_Datatype in_type);
+  void set_mpi_out_type(MPI_Datatype out_type);
 };
 
 // IMPLEMENTATION
@@ -49,6 +55,7 @@ template <typename IN_TYPE, typename OUT_TYPE>
 std::vector<OUT_TYPE>
 Map<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data,
                                 std::function<OUT_TYPE(IN_TYPE)> map_function) {
+  load_mpi_types();
   prepare_data(data);
   run_map_function(map_function);
   gather_data();
@@ -100,9 +107,9 @@ void Map<IN_TYPE, OUT_TYPE>::prepare_data(std::vector<IN_TYPE> &data) {
   
   // Distribute data over nodes into local buffers
   MPI_Scatterv(data.data(), elements_per_node.data(),
-               displacements_per_node.data(), hmputils::get_mpi_type<IN_TYPE>(),
+               displacements_per_node.data(), mpi_in_type,
                local_data.data(), elements_per_node[cluster->get_rank()],
-               hmputils::get_mpi_type<IN_TYPE>(), 0, MPI_COMM_WORLD);
+               mpi_in_type, 0, MPI_COMM_WORLD);
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
@@ -120,9 +127,30 @@ template <typename IN_TYPE, typename OUT_TYPE>
 void Map<IN_TYPE, OUT_TYPE>::gather_data() {
   // Gather data to master buffer
   MPI_Gatherv(local_return_data.data(), elements_per_node[cluster->get_rank()],
-              hmputils::get_mpi_type<OUT_TYPE>(), return_data.data(),
+              mpi_out_type, return_data.data(),
               elements_per_node.data(), displacements_per_node.data(),
-              hmputils::get_mpi_type<OUT_TYPE>(), 0, MPI_COMM_WORLD);
+              mpi_out_type, 0, MPI_COMM_WORLD);
+}
+
+template <typename IN_TYPE, typename OUT_TYPE>
+void Map<IN_TYPE, OUT_TYPE>::load_mpi_types() {
+  if (hmputils::is_mpi_primitive<IN_TYPE>::value) {
+    mpi_in_type = hmputils::mpi_type_of<IN_TYPE>::value();
+  }
+
+  if (hmputils::is_mpi_primitive<OUT_TYPE>::value) {
+    mpi_out_type = hmputils::mpi_type_of<OUT_TYPE>::value();
+  }
+}
+
+template <typename IN_TYPE, typename OUT_TYPE>
+void Map<IN_TYPE, OUT_TYPE>::set_mpi_in_type(MPI_Datatype in_type) {
+  mpi_in_type = in_type;
+}
+
+template <typename IN_TYPE, typename OUT_TYPE>
+void Map<IN_TYPE, OUT_TYPE>::set_mpi_out_type(MPI_Datatype out_type) {
+  mpi_out_type = out_type;
 }
 
 } // namespace hmp
