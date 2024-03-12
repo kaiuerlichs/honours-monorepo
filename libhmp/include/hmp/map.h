@@ -1,8 +1,10 @@
 #ifndef HMP_MAP_H_
 #define HMP_MAP_H_
 
+#include <cstdio>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "hmp.h"
@@ -26,8 +28,8 @@ private:
   std::vector<int> elements_per_node;
   std::vector<int> displacements_per_node;
 
-  MPI_Datatype mpi_in_type;
-  MPI_Datatype mpi_out_type;
+  MPI_Datatype mpi_in_type = MPI_DATATYPE_NULL;
+  MPI_Datatype mpi_out_type = MPI_DATATYPE_NULL;
 
   void prepare_data(std::vector<IN_TYPE> &data);
   void run_map_function(std::function<OUT_TYPE(IN_TYPE)> map_function);
@@ -49,13 +51,24 @@ public:
 template <typename IN_TYPE, typename OUT_TYPE>
 Map<IN_TYPE, OUT_TYPE>::Map(std::shared_ptr<MPICluster> cluster_ptr) {
   cluster = cluster_ptr;
+  load_mpi_types();
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
 std::vector<OUT_TYPE>
 Map<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data,
                                 std::function<OUT_TYPE(IN_TYPE)> map_function) {
-  load_mpi_types();
+  bool in_type_defined = mpi_in_type != MPI_DATATYPE_NULL;
+  bool out_type_defined = mpi_out_type != MPI_DATATYPE_NULL;
+
+  if (!in_type_defined || !out_type_defined) {
+    std::string types;
+    if (!in_type_defined) types += "IN_TYPE; ";
+    if (!out_type_defined) types += "OUT_TYPE; ";
+    
+    throw std::invalid_argument("Some template parameters have no defined MPI type. Please provide an MPI type using setter functions for: " + types);
+  }
+
   prepare_data(data);
   run_map_function(map_function);
   gather_data();
@@ -68,7 +81,7 @@ Map<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data,
 template <typename IN_TYPE, typename OUT_TYPE>
 void Map<IN_TYPE, OUT_TYPE>::prepare_data(std::vector<IN_TYPE> &data) {
   elements_per_node.resize(cluster->get_node_count());
-
+  
   if (cluster->on_master()) {
     std::vector<std::pair<int, int>> thread_distribution =
         cluster->get_thread_distribution();
@@ -134,11 +147,10 @@ void Map<IN_TYPE, OUT_TYPE>::gather_data() {
 
 template <typename IN_TYPE, typename OUT_TYPE>
 void Map<IN_TYPE, OUT_TYPE>::load_mpi_types() {
-  if (hmputils::is_mpi_primitive<IN_TYPE>::value) {
+  if constexpr(hmputils::is_mpi_primitive<IN_TYPE>::value) {
     mpi_in_type = hmputils::mpi_type_of<IN_TYPE>::value();
   }
-
-  if (hmputils::is_mpi_primitive<OUT_TYPE>::value) {
+  if constexpr(hmputils::is_mpi_primitive<OUT_TYPE>::value) {
     mpi_out_type = hmputils::mpi_type_of<OUT_TYPE>::value();
   }
 }
