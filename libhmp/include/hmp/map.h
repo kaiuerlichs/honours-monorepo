@@ -158,11 +158,13 @@ void Map<IN_TYPE, OUT_TYPE>::load_mpi_types() {
 template <typename IN_TYPE, typename OUT_TYPE>
 void Map<IN_TYPE, OUT_TYPE>::set_mpi_in_type(MPI_Datatype in_type) {
   mpi_in_type = in_type;
+  MPI_Type_commit(&mpi_in_type);
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
 void Map<IN_TYPE, OUT_TYPE>::set_mpi_out_type(MPI_Datatype out_type) {
   mpi_out_type = out_type;
+  MPI_Type_commit(&mpi_out_type);
 }
 
 } // namespace hmp
