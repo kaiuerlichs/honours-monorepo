@@ -52,7 +52,7 @@ private:
 
   int node_count;
   int core_count;
-  bool os_linux;
+  bool os_linux = true;
 
   void add_node(std::shared_ptr<Node>);
 
