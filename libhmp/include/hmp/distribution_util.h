@@ -2,7 +2,9 @@
 #define HMP_DISTRIBUTION_UTIL_H_
 
 #include <memory>
+#include <stdexcept>
 #include <vector>
+#include <cmath>
 
 #include "hmp.h"
 
@@ -76,6 +78,7 @@ inline std::vector<int> distribution_by_type(int total_items, Distribution type,
       return distribution_with_core_count_frequency(total_items, cluster);
       break;
     default:
+      throw std::invalid_argument("Selected distribution type is not implemented!");
       break;
   }
 }
