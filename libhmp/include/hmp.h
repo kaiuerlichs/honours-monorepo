@@ -33,6 +33,8 @@ public:
   Node();
   ~Node(){};
 
+  void initialise();
+
   void print_info();
   bool is_master();
   bool is_linux();
@@ -77,7 +79,9 @@ public:
 
 // IMPLEMENTATION
 
-inline Node::Node() {
+inline Node::Node() {}
+
+inline void Node::initialise() {
   load_rank();
   load_os_type();
   load_processor_info();
@@ -173,16 +177,17 @@ inline MPICluster::MPICluster() {
   MPI_Comm_size(MPI_COMM_WORLD, &node_count);
 
   self = std::make_shared<Node>();
+  self->initialise();
 
   MPI_Datatype mpi_node_type = self->get_mpi_type();
 
   if (self->is_master()) {
     add_node(self);
     for (int i = 1; i < node_count; ++i) {
-      Node node;
-      MPI_Recv(&node, 1, mpi_node_type, i, 0, MPI_COMM_WORLD,
+      auto node = std::make_shared<Node>();
+      MPI_Recv(node.get(), 1, mpi_node_type, i, 0, MPI_COMM_WORLD,
                MPI_STATUS_IGNORE);
-      add_node(std::make_shared<Node>(node));
+      add_node(node);
     }
     print_info();
   } else {
@@ -196,9 +201,7 @@ inline int MPICluster::get_node_count() { return node_count; }
 
 inline int MPICluster::get_total_core_count() { return core_count; }
 
-inline int MPICluster::get_local_core_count() {
-  return self->get_core_count();
-}
+inline int MPICluster::get_local_core_count() { return self->get_core_count(); }
 
 inline int MPICluster::get_rank() { return self->get_rank(); }
 
