@@ -59,6 +59,7 @@ Map<IN_TYPE, OUT_TYPE>::Map(std::shared_ptr<MPICluster> cluster_ptr, Distributio
   if (cluster->is_linux()) {
     distribution_type = distribution;
   } else {
+    printf("Defaulting to CORE_COUNT distribution due to operating system constraints\n");
     distribution_type = Distribution::CORE_COUNT;
   }
   load_mpi_types();
@@ -97,10 +98,9 @@ template <typename IN_TYPE, typename OUT_TYPE>
 void Map<IN_TYPE, OUT_TYPE>::prepare_data(std::vector<IN_TYPE> &data) {
   items_per_node.resize(cluster->get_node_count());
   
-  int total_items = data.size();
-
   if (cluster->on_master()) {
-    distribution_by_type(total_items, distribution_type, cluster);
+    int total_items = data.size();
+    items_per_node = distribution_by_type(total_items, distribution_type, cluster);
     return_data.resize(total_items);
   }
 
