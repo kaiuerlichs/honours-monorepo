@@ -158,16 +158,24 @@ inline int Node::get_frequency() { return processor_frequency; }
 inline int Node::get_core_count() { return core_count; }
 
 inline MPI_Datatype Node::get_mpi_type() {
-  int blocklengths[3] = {1, 1, MPI_MAX_PROCESSOR_NAME};
+  const int nitems = 5; // Adjusted for the five items we're sending
+  int blocklengths[5] = {1, 1, MPI_MAX_PROCESSOR_NAME, 1,
+                         1}; // Added core_count and os_linux (as int)
 
-  MPI_Aint displacements[3];
+  MPI_Aint displacements[5];
   displacements[0] = offsetof(Node, process_rank);
-  displacements[1] = offsetof(Node, core_count);
+  displacements[1] = offsetof(
+      Node, processor_frequency); // Adjusted to include processor_frequency
   displacements[2] = offsetof(Node, processor_name);
+  displacements[3] = offsetof(Node, core_count);
+  displacements[4] = offsetof(Node, os_linux); // Adjusted to include os_linux
 
-  MPI_Datatype types[3] = {MPI_INT, MPI_INT, MPI_CHAR};
+  MPI_Datatype types[5] = {MPI_INT, MPI_INT, MPI_CHAR, MPI_INT,
+                           MPI_INT}; // os_linux treated as MPI_INT
+
   MPI_Datatype mpi_node_type;
-  MPI_Type_create_struct(3, blocklengths, displacements, types, &mpi_node_type);
+  MPI_Type_create_struct(nitems, blocklengths, displacements, types,
+                         &mpi_node_type);
   MPI_Type_commit(&mpi_node_type);
   return mpi_node_type;
 }
