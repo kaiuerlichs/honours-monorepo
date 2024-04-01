@@ -20,7 +20,7 @@ private:
   int process_rank;
   int processor_frequency;
   char processor_name[MPI_MAX_PROCESSOR_NAME];
-  int thread_count;
+  int core_count;
   bool os_linux;
 
   void load_rank();
@@ -37,7 +37,8 @@ public:
   bool is_master();
   bool is_linux();
   int get_rank();
-  int get_thread_count();
+  int get_frequency();
+  int get_core_count();
 
   // Returns a custom MPI type used for sending node info objects between nodes
   MPI_Datatype get_mpi_type();
@@ -50,7 +51,7 @@ private:
   std::vector<std::shared_ptr<Node>> nodes;
 
   int node_count;
-  int thread_count;
+  int core_count;
   bool os_linux;
 
   void add_node(std::shared_ptr<Node>);
@@ -66,9 +67,10 @@ public:
   bool on_master();
   bool is_linux();
   int get_node_count();
-  int get_total_thread_count();
-  int get_local_thread_count();
-  std::vector<std::pair<int, int>> get_thread_distribution();
+  int get_total_core_count();
+  int get_local_core_count();
+  std::vector<int> get_cores_per_node();
+  std::vector<int> get_frequency_per_node();
   int get_rank();
   void print_info();
 };
@@ -91,7 +93,7 @@ inline void Node::load_processor_info() {
   int name_length;
   MPI_Get_processor_name(processor_name, &name_length);
 
-  thread_count = omp_get_max_threads();
+  core_count = omp_get_max_threads();
 
   if (is_linux()) {
     processor_frequency = get_processor_frequency();
@@ -137,8 +139,8 @@ inline int Node::get_processor_frequency() {
 }
 
 inline void Node::print_info() {
-  std::printf("Node information for %s: Rank %i, Threads %i\n", processor_name,
-              process_rank, thread_count);
+  std::printf("Node information for %s: Rank %i, Cores %i\n", processor_name,
+              process_rank, core_count);
 }
 
 inline bool Node::is_master() { return process_rank == 0; }
@@ -147,14 +149,16 @@ inline bool Node::is_linux() { return os_linux; }
 
 inline int Node::get_rank() { return process_rank; }
 
-inline int Node::get_thread_count() { return thread_count; }
+inline int Node::get_frequency() { return processor_frequency; }
+
+inline int Node::get_core_count() { return core_count; }
 
 inline MPI_Datatype Node::get_mpi_type() {
   int blocklengths[3] = {1, 1, MPI_MAX_PROCESSOR_NAME};
 
   MPI_Aint displacements[3];
   displacements[0] = offsetof(Node, process_rank);
-  displacements[1] = offsetof(Node, thread_count);
+  displacements[1] = offsetof(Node, core_count);
   displacements[2] = offsetof(Node, processor_name);
 
   MPI_Datatype types[3] = {MPI_INT, MPI_INT, MPI_CHAR};
@@ -190,16 +194,16 @@ inline bool MPICluster::on_master() { return self->is_master(); }
 
 inline int MPICluster::get_node_count() { return node_count; }
 
-inline int MPICluster::get_total_thread_count() { return thread_count; }
+inline int MPICluster::get_total_core_count() { return core_count; }
 
-inline int MPICluster::get_local_thread_count() {
-  return self->get_thread_count();
+inline int MPICluster::get_local_core_count() {
+  return self->get_core_count();
 }
 
 inline int MPICluster::get_rank() { return self->get_rank(); }
 
 inline void MPICluster::add_node(std::shared_ptr<Node> node_ptr) {
-  thread_count += node_ptr->get_thread_count();
+  core_count += node_ptr->get_core_count();
   nodes.push_back(node_ptr);
 
   if (!node_ptr->is_linux()) {
@@ -207,12 +211,22 @@ inline void MPICluster::add_node(std::shared_ptr<Node> node_ptr) {
   }
 }
 
-inline std::vector<std::pair<int, int>> MPICluster::get_thread_distribution() {
-  std::vector<std::pair<int, int>> distribution;
+inline std::vector<int> MPICluster::get_cores_per_node() {
+  std::vector<int> cores;
+  cores.resize(node_count);
   for (auto node : nodes) {
-    distribution.push_back({node->get_rank(), node->get_thread_count()});
+    cores[node->get_rank()] = node->get_core_count();
   }
-  return distribution;
+  return cores;
+}
+
+inline std::vector<int> MPICluster::get_frequency_per_node() {
+  std::vector<int> frequencies;
+  frequencies.resize(node_count);
+  for (auto node : nodes) {
+    frequencies[node->get_rank()] = node->get_frequency();
+  }
+  return frequencies;
 }
 
 inline bool MPICluster::is_linux() { return os_linux; }
