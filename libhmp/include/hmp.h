@@ -3,7 +3,10 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <fstream>
 #include <memory>
+#include <regex>
+#include <sstream>
 #include <vector>
 
 #include "mpi.h"
@@ -23,6 +26,8 @@ private:
   void load_rank();
   void load_os_type();
   void load_processor_info();
+  std::string read_cpu_info();
+  int get_processor_frequency();
 
 public:
   Node();
@@ -89,7 +94,9 @@ inline void Node::load_processor_info() {
   thread_count = omp_get_max_threads();
 
   if (is_linux()) {
-    // TODO: Load processor frequency
+    processor_frequency = get_processor_frequency();
+  } else {
+    processor_frequency = 0;
   }
 }
 
@@ -101,6 +108,32 @@ inline void Node::load_os_type() {
 #else
   os_linux = false;
 #endif
+}
+
+inline std::string Node::read_cpu_info() {
+  std::ifstream proc_cpuinfo("/proc/cpuinfo");
+
+  if (!proc_cpuinfo.is_open()) {
+    // TODO: Handle file open error
+  }
+
+  std::stringstream buffer;
+  buffer << proc_cpuinfo.rdbuf();
+
+  return buffer.str();
+}
+
+inline int Node::get_processor_frequency() {
+  std::string proc_cpuinfo = read_cpu_info();
+  std::regex regex_pattern("cpu MHz\\s*:\\s*([\\d.]+)");
+  std::smatch regex_match;
+
+  if (std::regex_search(proc_cpuinfo, regex_match, regex_pattern)) {
+    float frequency_raw = std::stof(regex_match[1].str());
+    return static_cast<int>(std::round(frequency_raw));
+  }
+
+  return 0;
 }
 
 inline void Node::print_info() {
