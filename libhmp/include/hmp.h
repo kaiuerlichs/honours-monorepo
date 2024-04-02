@@ -1,5 +1,5 @@
-#ifndef INCLUDE_HMP_H_
-#define INCLUDE_HMP_H_
+#ifndef HMP_H_
+#define HMP_H_
 
 #include <cstddef>
 #include <cstdio>
@@ -252,4 +252,4 @@ inline MPICluster::~MPICluster() { MPI_Finalize(); }
 
 } // namespace hmp
 
-#endif // INCLUDE_HMP_H_
+#endif // HMP_H_
