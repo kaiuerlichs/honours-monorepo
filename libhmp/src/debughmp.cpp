@@ -1,6 +1,7 @@
 #include "distribution_util.h"
 #include "hmp.h"
 #include "hmp/map.h"
+#include "hmp/pipeline.h"
 #include "mpi.h"
 #include <cstddef>
 #include <cstdio>
@@ -31,7 +32,12 @@ void handle_output_data(std::vector<int> data) {
   printf("\n");
 }
 
-int main() {
+struct TestData {
+  int a;
+  int b;
+};
+
+void test_map() {
   auto cluster = std::make_shared<hmp::MPICluster>();
   std::vector<int> data;
 
@@ -44,6 +50,44 @@ int main() {
 
   if (cluster->on_master())
     handle_output_data(return_data);
+}
 
+void test_pipeline() {
+  auto cluster = std::make_shared<hmp::MPICluster>();
+  std::vector<int> data = {1, 2, 3};
+
+  auto pipeline = std::make_unique<hmp::Pipeline<int, double>>(cluster);
+
+  int blocklengths[2] = {1, 1};
+
+  // Displacements of each block
+  MPI_Aint displacements[2];
+  TestData temp;
+  MPI_Get_address(&temp.a, &displacements[0]);
+  MPI_Get_address(&temp.b, &displacements[1]);
+
+  // Types of each block
+  MPI_Datatype types[2] = {MPI_INT, MPI_INT};
+
+  // Adjust displacements to be relative to the start of the struct
+  displacements[1] -= displacements[0];
+  displacements[0] = 0;
+
+  // Create the MPI datatype
+  MPI_Datatype testDataMPIType;
+  MPI_Type_create_struct(2, blocklengths, displacements, types,
+                         &testDataMPIType);
+
+  pipeline->add_mpi_type<TestData>(testDataMPIType);
+
+  pipeline->add_stage<int, double>([](int x) { return x; });
+  pipeline->add_stage<double, TestData>([](double x) { return TestData(); });
+  pipeline->add_stage<TestData, double>([](TestData x) { return 0; });
+
+  pipeline->execute(data);
+}
+
+int main() {
+  test_pipeline();
   return 0;
 }
