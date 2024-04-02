@@ -83,6 +83,6 @@ inline std::vector<int> distribution_by_type(int total_items, Distribution type,
   }
 }
 
-}
+} // namespace hmp
 
 #endif // HMP_DISTRIBUTION_UTIL_H_
