@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <thread>
 #include <vector>
 
 int test(int i) { return i * i; }
@@ -56,7 +57,7 @@ void test_pipeline() {
   auto cluster = std::make_shared<hmp::MPICluster>();
   std::vector<int> data = {1, 2, 3};
 
-  auto pipeline = std::make_unique<hmp::Pipeline<int, double>>(cluster);
+  auto pipeline = std::make_unique<hmp::Pipeline<int, double>>(cluster, hmp::Distribution::CORE_FREQUENCY);
 
   int blocklengths[2] = {1, 1};
 
@@ -69,7 +70,7 @@ void test_pipeline() {
   // Types of each block
   MPI_Datatype types[2] = {MPI_INT, MPI_INT};
 
-  // Adjust displacements to be relative to the start of the struct
+  // Adjust displacements to be relative to the stat of the struct
   displacements[1] -= displacements[0];
   displacements[0] = 0;
 
@@ -80,9 +81,9 @@ void test_pipeline() {
 
   pipeline->add_mpi_type<TestData>(testDataMPIType);
 
-  pipeline->add_stage<int, double>([](int x) { return x; });
-  pipeline->add_stage<double, TestData>([](double x) { return TestData(); });
-  pipeline->add_stage<TestData, double>([](TestData x) { return 0; });
+  pipeline->add_stage<int, double>([](int x) { std::this_thread::sleep_for(std::chrono::seconds(1)); return x; }, 0);
+  pipeline->add_stage<double, TestData>([](double x) { std::this_thread::sleep_for(std::chrono::seconds(2)); return TestData(); }, 0);
+  pipeline->add_stage<TestData, double>([](TestData x) { std::this_thread::sleep_for(std::chrono::seconds(3)); return 0; }, TestData());
 
   pipeline->execute(data);
 }
