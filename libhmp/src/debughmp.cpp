@@ -57,33 +57,10 @@ void test_pipeline() {
   auto cluster = std::make_shared<hmp::MPICluster>();
   std::vector<int> data = {1, 2, 3};
 
-  auto pipeline = std::make_unique<hmp::Pipeline<int, double>>(cluster, hmp::Distribution::CORE_FREQUENCY);
+  auto pipeline = std::make_unique<hmp::Pipeline<int, int>>(cluster, hmp::Distribution::CORE_FREQUENCY);
 
-  int blocklengths[2] = {1, 1};
-
-  // Displacements of each block
-  MPI_Aint displacements[2];
-  TestData temp;
-  MPI_Get_address(&temp.a, &displacements[0]);
-  MPI_Get_address(&temp.b, &displacements[1]);
-
-  // Types of each block
-  MPI_Datatype types[2] = {MPI_INT, MPI_INT};
-
-  // Adjust displacements to be relative to the stat of the struct
-  displacements[1] -= displacements[0];
-  displacements[0] = 0;
-
-  // Create the MPI datatype
-  MPI_Datatype testDataMPIType;
-  MPI_Type_create_struct(2, blocklengths, displacements, types,
-                         &testDataMPIType);
-
-  pipeline->add_mpi_type<TestData>(testDataMPIType);
-
-  pipeline->add_stage<int, double>([](int x) { std::this_thread::sleep_for(std::chrono::seconds(1)); return x; }, 0);
-  pipeline->add_stage<double, TestData>([](double x) { std::this_thread::sleep_for(std::chrono::seconds(2)); return TestData(); }, 0);
-  pipeline->add_stage<TestData, double>([](TestData x) { std::this_thread::sleep_for(std::chrono::seconds(3)); return 0; }, TestData());
+  pipeline->add_stage<int, int>([](int x) { printf("Stage1"); return x * x; }, 1);
+  // pipeline->add_stage<int, int>([](int x) { printf("Stage2"); return x * x; }, 1);
 
   pipeline->execute(data);
 }

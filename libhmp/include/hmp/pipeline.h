@@ -4,6 +4,7 @@
 #include "mpi.h"
 #include <any>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -22,7 +23,13 @@ struct IStage {
   virtual ~IStage() = default;
   virtual const std::type_info &input_type() const = 0;
   virtual const std::type_info &output_type() const = 0;
+
   virtual int profile() = 0;
+  virtual std::any run_self(int stage_number, int threads, int rank, int prev_rank,
+                    int next_rank, std::any &data) = 0;
+
+  MPI_Datatype input_mpi_type = MPI_DATATYPE_NULL;
+  MPI_Datatype output_mpi_type = MPI_DATATYPE_NULL;
 
   int profiling_runtime;
 };
@@ -30,18 +37,20 @@ struct IStage {
 template <typename IN_TYPE, typename OUT_TYPE> struct Stage : IStage {
   std::function<OUT_TYPE(IN_TYPE)> stage_function;
 
-  MPI_Datatype mpi_input_type;
-  MPI_Datatype mpi_output_type;
-
   IN_TYPE profiling_input;
 
-  Stage(std::function<OUT_TYPE(IN_TYPE)> f, MPI_Datatype &mpi_in_type,
-        MPI_Datatype &mpi_out_type, IN_TYPE profiling_in);
+  Stage(std::function<OUT_TYPE(IN_TYPE)> f, MPI_Datatype mpi_in_type,
+        MPI_Datatype mpi_out_type, IN_TYPE profiling_in);
 
   int profile() override;
 
-  const std::type_info &input_type() const override { return typeid(IN_TYPE); }
+  virtual std::any run_self(int stage_number, int threads, int rank, int prev_rank,
+                    int next_rank, std::any &data) override;
 
+
+  std::vector<MPI_Request> send_requests;
+
+  const std::type_info &input_type() const override { return typeid(IN_TYPE); }
   const std::type_info &output_type() const override {
     return typeid(OUT_TYPE);
   }
@@ -50,16 +59,20 @@ template <typename IN_TYPE, typename OUT_TYPE> struct Stage : IStage {
 template <typename IN_TYPE, typename OUT_TYPE> class Pipeline {
 private:
   std::shared_ptr<MPICluster> cluster;
-  std::vector<std::unique_ptr<IStage>> stages;
   std::unordered_map<std::type_index, MPI_Datatype> mpi_type_table;
+
+  std::vector<std::unique_ptr<IStage>> stages;
   int stage_count = 0;
+
   int total_profiling_runtime;
-  std::vector<std::vector<int>> stages_per_node;
 
   Distribution distribution_type;
+  int local_stage;
+  std::vector<int> node_per_stage;
 
   void profile_stages();
   void allocate_stages();
+  std::vector<OUT_TYPE> run_stages(std::vector<IN_TYPE> &data);
 
 public:
   Pipeline(std::shared_ptr<MPICluster> cluster_ptr, Distribution distribution);
@@ -78,13 +91,13 @@ public:
 
 template <typename IN_TYPE, typename OUT_TYPE>
 Stage<IN_TYPE, OUT_TYPE>::Stage(std::function<OUT_TYPE(IN_TYPE)> f,
-                                MPI_Datatype &mpi_in_type,
-                                MPI_Datatype &mpi_out_type,
+                                MPI_Datatype mpi_in_type,
+                                MPI_Datatype mpi_out_type,
                                 IN_TYPE profiling_in) {
   stage_function = std::move(f);
-  mpi_input_type = mpi_in_type;
-  mpi_output_type = mpi_out_type;
   profiling_input = profiling_in;
+  input_mpi_type = mpi_in_type;
+  output_mpi_type = mpi_out_type;
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
@@ -186,25 +199,16 @@ Pipeline<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
         "Output type of final stage does not match pipeline output type");
   }
 
-  if (stage_count > cluster->get_total_core_count()) {
+  if (stage_count > cluster->get_node_count()) {
     throw std::invalid_argument(
-        "Too many stages: Stage count exceeds cluster core count");
+        "Too many stages: Stage count exceeds node count");
   }
-
+  printf("STAGE COUNT %d", stage_count);
   profile_stages();
+
   allocate_stages();
 
-  for (size_t i = 0; i < stages_per_node.size(); ++i) {
-    printf("Node %zu: ", i);
-    for (size_t j = 0; j < stages_per_node[i].size(); ++j) {
-      printf("%d", stages_per_node[i][j]);
-      if (j < stages_per_node[i].size() - 1) {
-        printf(", "); // Add a comma between numbers, but not after the last one
-      }
-    }
-    printf("\n"); // Newline after each node's stages are printed
-  }
-
+  // std::vector<OUT_TYPE> return_data = run_stages(data);
   std::vector<OUT_TYPE> return_data;
   return return_data;
 }
@@ -218,12 +222,142 @@ void Pipeline<IN_TYPE, OUT_TYPE>::profile_stages() {
 
 template <typename IN_TYPE, typename OUT_TYPE>
 void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
-  std::vector<float> stage_weights;
-  for (auto &stage : stages) {
-    stage_weights.push_back(static_cast<float>(stage->profiling_runtime) /
-                            static_cast<float>(total_profiling_runtime));
+  if (cluster->on_master()) {
+    std::vector<float> stage_weights;
+    for (auto &stage : stages) {
+      stage_weights.push_back(static_cast<float>(stage->profiling_runtime) /
+                              static_cast<float>(total_profiling_runtime));
+    }
+    node_per_stage =
+        distribute_tasks(stage_weights, distribution_type, cluster);
+
+    local_stage = 0;
+
+    for (int stage = 1; stage < node_per_stage.size(); ++stage) {
+      MPI_Send(&stage, 1, MPI_INT, node_per_stage[stage], 0, MPI_COMM_WORLD);
+      MPI_Send(node_per_stage.data(), stage_count, MPI_INT, node_per_stage[stage], 0,
+               MPI_COMM_WORLD);
+    }
+  } else {
+    MPI_Recv(&local_stage, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(node_per_stage.data(), stage_count, MPI_INT, 0, 0, MPI_COMM_WORLD,
+             MPI_STATUS_IGNORE);
   }
-  stages_per_node = distribute_tasks(stage_weights, distribution_type, cluster);
+
+  printf("Test");
+}
+
+template <typename IN_TYPE, typename OUT_TYPE>
+std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
+  int threads = cluster->get_local_core_count();
+  int rank = cluster->get_rank();
+  int prev_rank = (rank == 0) ? 0 : node_per_stage[local_stage-1];
+  int next_rank = (local_stage == stage_count-1) ? 0 : node_per_stage[local_stage+1];
+  std::any any_input = std::any(data);
+  std::any output_data = stages[local_stage]->run_self(local_stage, threads, rank, prev_rank, next_rank, any_input);
+
+  return std::any_cast<std::vector<OUT_TYPE>>(output_data);
+}
+
+template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
+std::any
+Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
+                                               int rank, int prev_rank,
+                                               int next_rank, std::any &data) {
+  int expected_seq = 0;
+  bool terminate = false;
+
+  std::vector<STAGE_IN_TYPE> input_data;
+  std::vector<STAGE_OUT_TYPE> output_data;
+
+  if (rank == 0) {
+    input_data = std::any_cast<const std::vector<STAGE_IN_TYPE>>(data);
+    output_data.resize(input_data.size());
+  }
+
+#pragma omp parallel num_threads(threads)
+  {
+    std::vector<MPI_Request> send_requests;
+    STAGE_IN_TYPE item_buffer;
+    while (1) {
+#pragma omp critical
+      {
+        if (terminate)
+          break;
+        int current_seq = expected_seq;
+        ++expected_seq;
+
+        bool local_terminate = false;
+        if (rank == 0) {
+          if (current_seq >= input_data.size()) {
+            local_terminate = true;
+            MPI_Send(&profiling_input, 0, output_mpi_type, next_rank, MPI_TAG_UB,
+                     MPI_COMM_WORLD);
+            break;
+          } else {
+            item_buffer = input_data[current_seq];
+          }
+        } else {
+          while (1) {
+            int flag = 0;
+            MPI_Status status;
+
+            MPI_Iprobe(prev_rank, current_seq, MPI_COMM_WORLD, &flag, &status);
+            if (flag) {
+              break;
+            }
+
+            MPI_Iprobe(prev_rank, -1, MPI_COMM_WORLD, &flag, &status);
+            if (flag) {
+              local_terminate = true;
+              MPI_Recv(&item_buffer, 0, input_mpi_type, 0, MPI_TAG_UB, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+              MPI_Send(&profiling_input, 0, output_mpi_type, next_rank, MPI_TAG_UB,
+                       MPI_COMM_WORLD);
+              break;
+            }
+          }
+        }
+
+        if (local_terminate) {
+          terminate = true;
+          break;
+        }
+
+        if (rank != 0) {
+          MPI_Recv(&item_buffer, 1, input_mpi_type, prev_rank, current_seq,
+                   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+
+        STAGE_OUT_TYPE return_value = stage_function(item_buffer);
+
+        MPI_Request send_request;
+        MPI_Isend(&return_value, 1, output_mpi_type, next_rank, current_seq,
+                  MPI_COMM_WORLD, &send_request);
+        send_requests.push_back(send_request);
+      }
+    }
+
+    if (rank == 0) {
+      STAGE_OUT_TYPE received_item;
+      MPI_Status status;
+      int num_items_received = 0;
+      while (num_items_received < input_data.size()) {
+        MPI_Recv(&received_item, 1, output_mpi_type, MPI_ANY_SOURCE,
+                 MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        if (status.MPI_TAG >= 0) {
+          output_data[status.MPI_TAG] = received_item;
+          num_items_received++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    MPI_Waitall(send_requests.size(), send_requests.data(),
+                MPI_STATUSES_IGNORE);
+  }
+
+  return std::any(output_data);
 }
 
 } // namespace hmp
