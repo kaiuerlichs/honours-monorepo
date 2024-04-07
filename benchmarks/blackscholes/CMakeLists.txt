@@ -7,10 +7,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
 # Define project
-project(HMP Benchmark - Blackscholes)
+project(HMP_Benchmark_Blackscholes LANGUAGES CXX)
 include_directories(
-        ${PROJECT_SOURCE_DIR}/../libhmp/include 
-        ${PROJECT_SOURCE_DIR}/../libhmp/include/hmp
+        ${PROJECT_SOURCE_DIR}/../../libhmp/include 
+        ${PROJECT_SOURCE_DIR}/../../libhmp/include/hmp
         ${PROJECT_SOURCE_DIR}/src
 )
 
