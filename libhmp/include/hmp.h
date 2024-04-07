@@ -182,7 +182,13 @@ inline MPI_Datatype Node::get_mpi_type() {
 }
 
 inline MPICluster::MPICluster() {
-  MPI_Init(NULL, NULL);
+  int thread_support;
+  MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &thread_support);
+  if (thread_support < MPI_THREAD_MULTIPLE) {
+    printf("Multithreaded MPI not supported. Aborting.");
+    MPI_Abort(MPI_COMM_WORLD, 0);
+  }
+
   MPI_Comm_size(MPI_COMM_WORLD, &node_count);
 
   self = std::make_shared<Node>();
