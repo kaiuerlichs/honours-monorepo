@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     executable_prefix = ""
     if version in ["openmpi", "hmpcore", "hmpfreq"]:
-        executable_prefix = f'mpiexec -n {node_count} -hosts {host_file}'
+        executable_prefix = f'mpiexec -n {node_count} -hostfile {host_file} '
    
     executable_command = f'{executable_prefix}./blackscholes_benchmark {version} {input_file} {output_file}'
 
