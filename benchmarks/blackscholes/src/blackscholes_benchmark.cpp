@@ -235,7 +235,7 @@ void run_serial() {
                                     options[i].OptionType, 0);
   }
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
 
   std::cout << duration << std::endl;
 
@@ -255,7 +255,7 @@ void run_openmp() {
                                     options[i].OptionType, 0);
   }
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
 
   std::cout << duration << std::endl;
 
@@ -335,7 +335,7 @@ void run_openmpi() {
         local_options[i].OptionType == 'C' ? 0 : 1, 0);
   }
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
 
 
   prices.resize(options_count);
@@ -389,7 +389,7 @@ void run_hmp_core() {
                                opt.OptionType == 'C' ? 0 : 1, 0);
   });
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
 
   if (cluster->on_master()) {
     std::cout << duration << std::endl;
@@ -434,7 +434,7 @@ void run_hmp_freq() {
                                opt.OptionType == 'C' ? 0 : 1, 0);
   });
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
 
   if (cluster->on_master()) {
     std::cout << duration << std::endl;
