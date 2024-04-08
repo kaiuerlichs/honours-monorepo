@@ -36,7 +36,6 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(blackscholes_benchmark OpenMP::OpenMP_CXX)
 else()
     target_link_libraries(blackscholes_benchmark "/opt/homebrew/opt/libomp/lib/libomp.dylib")
-    target_compile_options(blackscholes_benchmark PRIVATE "-fopenmp")
 
 endif()
 target_link_libraries(blackscholes_benchmark ${MPI_LIBRARIES})

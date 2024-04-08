@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <omp.h>
+#include <mpi.h>
 
 enum class Version {
   SERIAL,
@@ -229,6 +230,10 @@ void run_openmp() {
                                     options[i].r, options[i].v, options[i].t,
                                     options[i].OptionType, 0);
   }
+}
+
+void run_openmpi() {
+  MPI_Init(NULL, NULL);
 }
 
 int main(int argc, char *argv[]) {
