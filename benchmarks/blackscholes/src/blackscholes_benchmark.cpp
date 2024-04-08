@@ -1,25 +1,31 @@
+#include "distribution_util.h"
 #include <__chrono/duration.h>
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include <omp.h>
+#include <hmp.h>
+#include <hmp/map.h>
 #include <mpi.h>
+#include <omp.h>
 
 enum class Version {
   SERIAL,
   OPEN_MP,
   OPENMPI,
-  HMP,
+  HMPCORE,
+  HMPFREQ,
 };
 
 struct OptionData {
@@ -35,9 +41,14 @@ struct OptionData {
   float DGrefval;  // DerivaGem Reference Value
 };
 
+Version version;
+
 std::vector<OptionData> options;
 int options_count;
 std::vector<float> prices;
+
+std::string input_file;
+std::string output_file;
 
 #define inv_sqrt_2xPI 0.39894228040143270286
 float CNDF(float InputX) {
@@ -210,42 +221,207 @@ void write_prices_to_file(std::string output_file) {
   for (int i = 0; i < options_count; ++i) {
     file << std::fixed << std::setprecision(18) << prices[i] << "\n";
   }
+
+  file.close();
 }
 
 void run_serial() {
+  read_options_from_file(input_file);
+  prices.resize(options_count);
   for (int i = 0; i < options_count; ++i) {
     prices[i] = BlkSchlsEqEuroNoDiv(options[i].s, options[i].strike,
                                     options[i].r, options[i].v, options[i].t,
                                     options[i].OptionType, 0);
   }
+  write_prices_to_file(output_file);
 }
 
 void run_openmp() {
+  read_options_from_file(input_file);
+  prices.resize(options_count);
   int threads = omp_get_max_threads();
-  std::cout << threads << std::endl;
-  #pragma omp parallel for num_threads(threads)
+
+#pragma omp parallel for num_threads(threads)
   for (int i = 0; i < options_count; ++i) {
-    std::cout << omp_get_thread_num() << std::endl;
     prices[i] = BlkSchlsEqEuroNoDiv(options[i].s, options[i].strike,
                                     options[i].r, options[i].v, options[i].t,
                                     options[i].OptionType, 0);
   }
+  write_prices_to_file(output_file);
 }
 
 void run_openmpi() {
-  MPI_Init(NULL, NULL);
+  int init_flag;
+  MPI_Initialized(&init_flag);
+
+  if (!init_flag)
+    MPI_Init(NULL, NULL);
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  if (rank == 0) {
+    read_options_from_file(input_file);
+  }
+
+  MPI_Bcast(&options_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  int threads = omp_get_max_threads();
+
+  const int nitems = 9;
+  int blocklengths[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+  MPI_Datatype types[9] = {MPI_FLOAT, MPI_FLOAT, MPI_FLOAT,
+                           MPI_FLOAT, MPI_FLOAT, MPI_FLOAT,
+                           MPI_CHAR,  MPI_FLOAT, MPI_FLOAT};
+  MPI_Datatype mpi_option_type;
+  MPI_Aint offsets[9];
+
+  offsets[0] = offsetof(OptionData, s);
+  offsets[1] = offsetof(OptionData, strike);
+  offsets[2] = offsetof(OptionData, r);
+  offsets[3] = offsetof(OptionData, divq);
+  offsets[4] = offsetof(OptionData, v);
+  offsets[5] = offsetof(OptionData, t);
+  offsets[6] = offsetof(OptionData, OptionType);
+  offsets[7] = offsetof(OptionData, divs);
+  offsets[8] = offsetof(OptionData, DGrefval);
+
+  MPI_Type_create_struct(nitems, blocklengths, offsets, types,
+                         &mpi_option_type);
+  MPI_Type_commit(&mpi_option_type);
+
+  int options_per_process = options_count / size;
+  int remainder = options_count % size;
+
+  std::vector<int> sendcounts(size, options_per_process);
+  std::vector<int> displs(size, 0);
+
+  for (int i = 0; i < remainder; ++i) {
+    sendcounts[i]++;
+  }
+
+  for (int i = 1; i < size; ++i) {
+    displs[i] = displs[i - 1] + sendcounts[i - 1];
+  }
+
+  int recvcount = sendcounts[rank];
+
+  std::vector<OptionData> local_options;
+  local_options.resize(recvcount);
+  std::vector<float> local_prices;
+  local_prices.resize(recvcount);
+
+  MPI_Scatterv(options.data(), sendcounts.data(), displs.data(),
+               mpi_option_type, local_options.data(), recvcount,
+               mpi_option_type, 0, MPI_COMM_WORLD);
+
+  for (int i = 0; i < recvcount; ++i) {
+    local_prices[i] = BlkSchlsEqEuroNoDiv(
+        local_options[i].s, local_options[i].strike, local_options[i].r,
+        local_options[i].v, local_options[i].t,
+        local_options[i].OptionType == 'C' ? 0 : 1, 0);
+  }
+
+  prices.resize(options_count);
+
+  MPI_Gatherv(local_prices.data(), recvcount, MPI_FLOAT, prices.data(),
+              sendcounts.data(), displs.data(), MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    write_prices_to_file(output_file);
+  }
+
+  MPI_Type_free(&mpi_option_type);
+  MPI_Finalize();
+}
+
+void run_hmp_core() {
+  auto cluster = std::make_shared<hmp::MPICluster>();
+
+  const int nitems = 9;
+  int blocklengths[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+  MPI_Datatype types[9] = {MPI_FLOAT, MPI_FLOAT, MPI_FLOAT,
+                           MPI_FLOAT, MPI_FLOAT, MPI_FLOAT,
+                           MPI_CHAR,  MPI_FLOAT, MPI_FLOAT};
+  MPI_Datatype mpi_option_type;
+  MPI_Aint offsets[9];
+
+  offsets[0] = offsetof(OptionData, s);
+  offsets[1] = offsetof(OptionData, strike);
+  offsets[2] = offsetof(OptionData, r);
+  offsets[3] = offsetof(OptionData, divq);
+  offsets[4] = offsetof(OptionData, v);
+  offsets[5] = offsetof(OptionData, t);
+  offsets[6] = offsetof(OptionData, OptionType);
+  offsets[7] = offsetof(OptionData, divs);
+  offsets[8] = offsetof(OptionData, DGrefval);
+
+  MPI_Type_create_struct(nitems, blocklengths, offsets, types,
+                         &mpi_option_type);
+
+  if (cluster->on_master())
+    read_options_from_file(input_file);
+
+  auto map = std::make_unique<hmp::Map<OptionData, float>>(
+      cluster, hmp::Distribution::CORE_COUNT);
+  map->set_mpi_in_type(mpi_option_type);
+  prices = map->execute(options, [](OptionData opt) {
+    return BlkSchlsEqEuroNoDiv(opt.s, opt.strike, opt.r, opt.v, opt.t,
+                               opt.OptionType == 'C' ? 0 : 1, 0);
+  });
+
+  if (cluster->on_master())
+    write_prices_to_file(output_file);
+}
+
+void run_hmp_freq() {
+  auto cluster = std::make_shared<hmp::MPICluster>();
+
+  const int nitems = 9;
+  int blocklengths[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+  MPI_Datatype types[9] = {MPI_FLOAT, MPI_FLOAT, MPI_FLOAT,
+                           MPI_FLOAT, MPI_FLOAT, MPI_FLOAT,
+                           MPI_CHAR,  MPI_FLOAT, MPI_FLOAT};
+  MPI_Datatype mpi_option_type;
+  MPI_Aint offsets[9];
+
+  offsets[0] = offsetof(OptionData, s);
+  offsets[1] = offsetof(OptionData, strike);
+  offsets[2] = offsetof(OptionData, r);
+  offsets[3] = offsetof(OptionData, divq);
+  offsets[4] = offsetof(OptionData, v);
+  offsets[5] = offsetof(OptionData, t);
+  offsets[6] = offsetof(OptionData, OptionType);
+  offsets[7] = offsetof(OptionData, divs);
+  offsets[8] = offsetof(OptionData, DGrefval);
+
+  MPI_Type_create_struct(nitems, blocklengths, offsets, types,
+                         &mpi_option_type);
+
+  if (cluster->on_master())
+    read_options_from_file(input_file);
+
+  auto map = std::make_unique<hmp::Map<OptionData, float>>(
+      cluster, hmp::Distribution::CORE_FREQUENCY);
+  map->set_mpi_in_type(mpi_option_type);
+  prices = map->execute(options, [](OptionData opt) {
+    return BlkSchlsEqEuroNoDiv(opt.s, opt.strike, opt.r, opt.v, opt.t,
+                               opt.OptionType == 'C' ? 0 : 1, 0);
+  });
+
+  if (cluster->on_master())
+    write_prices_to_file(output_file);
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 6) {
+  if (argc != 4) {
     std::cerr << "Usage: <VERSION NAME: serial|openmp|openmpi|hmp> "
-                 "<NODE COUNT> <RUNS> <INPUT_FILE> <OUTPUT_FILE>"
+                 "<INPUT_FILE> <OUTPUT_FILE>"
               << std::endl;
     return 1;
   }
 
   char *version_string = argv[1];
-  Version version;
 
   if (strcmp(version_string, "serial") == 0) {
     version = Version::SERIAL;
@@ -253,50 +429,36 @@ int main(int argc, char *argv[]) {
     version = Version::OPEN_MP;
   } else if (strcmp(version_string, "openmpi") == 0) {
     version = Version::OPENMPI;
-  } else if (strcmp(version_string, "hmp") == 0) {
-    version = Version::HMP;
+  } else if (strcmp(version_string, "hmpcore") == 0) {
+    version = Version::HMPCORE;
+  } else if (strcmp(version_string, "hmpfreq") == 0) {
+    version = Version::HMPFREQ;
   } else {
-    std::cerr << "Version must be one of: serial|openmp|openmpi|hmp"
+    std::cerr << "Version must be one of: serial|openmp|openmpi|hmpcore|hmpfreq"
               << std::endl;
     return 1;
   }
 
-  int node_count = std::atoi(argv[2]);
-  if (node_count <= 0) {
-    std::cerr << "Node count must be positive." << std::endl;
-    return 1;
+  input_file = argv[2];
+  output_file = argv[3];
+
+  switch (version) {
+  case Version::SERIAL:
+    run_serial();
+    break;
+  case Version::OPEN_MP:
+    run_openmp();
+    break;
+  case Version::OPENMPI:
+    run_openmpi();
+    break;
+  case Version::HMPCORE:
+    run_hmp_core();
+    break;
+  case Version::HMPFREQ:
+    run_hmp_freq();
+    break;
+  default:
+    break;
   }
-
-  int runs = std::atoi(argv[3]);
-  if (runs <= 0) {
-    std::cerr << "Runs must be positive." << std::endl;
-    return 1;
-  }
-
-  std::string input_file = argv[4];
-  std::string output_file = argv[5];
-
-  read_options_from_file(input_file);
-  prices.resize(options_count);
-  
-  auto start = std::chrono::high_resolution_clock::now();
-
-  switch(version){
-    case Version::SERIAL:
-      run_serial();
-      break;
-    case Version::OPEN_MP:
-      run_openmp();
-      break;
-    default:
-      break;
-  }
-
-  auto end = std::chrono::high_resolution_clock::now();
-
-  auto duration = std::chrono::duration(end-start);
-
-  std::cout << duration.count() << std::endl;
-
-  write_prices_to_file(output_file);
 }
