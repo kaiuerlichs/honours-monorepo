@@ -1,11 +1,18 @@
-#include "mpi.h"
+#include <__chrono/duration.h>
+#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
+
+#include <omp.h>
 
 enum class Version {
   SERIAL,
@@ -15,19 +22,20 @@ enum class Version {
 };
 
 struct OptionData {
-  float s;        // spot price
-  float strike;   // strike price
-  float r;        // risk-free interest rate
-  float divq;     // dividend rate
-  float v;        // volatility
-  float t;        // time to maturity or option expiration in years
+  float s;         // spot price
+  float strike;    // strike price
+  float r;         // risk-free interest rate
+  float divq;      // dividend rate
+  float v;         // volatility
+  float t;         // time to maturity or option expiration in years
                    //     (1yr = 1.0, 6mos = 0.5, 3mos = 0.25, ..., etc)
   char OptionType; // Option type.  "P"=PUT, "C"=CALL
-  float divs;     // dividend vals (not used in this test)
-  float DGrefval; // DerivaGem Reference Value
+  float divs;      // dividend vals (not used in this test)
+  float DGrefval;  // DerivaGem Reference Value
 };
 
 std::vector<OptionData> options;
+int options_count;
 std::vector<float> prices;
 
 #define inv_sqrt_2xPI 0.39894228040143270286
@@ -156,11 +164,75 @@ float BlkSchlsEqEuroNoDiv(float sptprice, float strike, float rate,
   return OptionPrice;
 }
 
+void read_options_from_file(std::string input_file) {
+  std::ifstream file(input_file);
+  std::string line;
+  int i = 0;
 
-int read_options_from_file()
+  if (!file.is_open()) {
+    std::cerr << "Unable to open input file" << std::endl;
+    exit(1);
+  }
+
+  std::getline(file, line);
+  options_count = std::stoi(line);
+
+  while (std::getline(file, line)) {
+    OptionData opt;
+    std::istringstream iss(line);
+
+    if (!(iss >> opt.s >> opt.strike >> opt.r >> opt.divq >> opt.v >> opt.t >>
+          opt.OptionType >> opt.divs >> opt.DGrefval)) {
+      std::cerr << "Error processing line: " << line << std::endl;
+      exit(1);
+    }
+
+    options.push_back(opt);
+  }
+}
+
+void write_prices_to_file(std::string output_file) {
+  std::ofstream file(output_file);
+
+  if (!file.is_open()) {
+    std::cerr << "Unable to open output file" << std::endl;
+    exit(1);
+  }
+
+  file << options_count << "\n";
+  if (file.fail()) {
+    std::cerr << "Cannot write to output file" << std::endl;
+    file.close();
+    exit(1);
+  }
+
+  for (int i = 0; i < options_count; ++i) {
+    file << std::fixed << std::setprecision(18) << prices[i] << "\n";
+  }
+}
+
+void run_serial() {
+  for (int i = 0; i < options_count; ++i) {
+    prices[i] = BlkSchlsEqEuroNoDiv(options[i].s, options[i].strike,
+                                    options[i].r, options[i].v, options[i].t,
+                                    options[i].OptionType, 0);
+  }
+}
+
+void run_openmp() {
+  int threads = omp_get_max_threads();
+  std::cout << threads << std::endl;
+  #pragma omp parallel for num_threads(threads)
+  for (int i = 0; i < options_count; ++i) {
+    std::cout << omp_get_thread_num() << std::endl;
+    prices[i] = BlkSchlsEqEuroNoDiv(options[i].s, options[i].strike,
+                                    options[i].r, options[i].v, options[i].t,
+                                    options[i].OptionType, 0);
+  }
+}
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
+  if (argc != 6) {
     std::cerr << "Usage: <VERSION NAME: serial|openmp|openmpi|hmp> "
                  "<NODE COUNT> <RUNS> <INPUT_FILE> <OUTPUT_FILE>"
               << std::endl;
@@ -184,21 +256,42 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  int node_count = 1;
-  if (argc > 2) {
-    int node_count = std::atoi(argv[2]);
-    if (node_count <= 0) {
-      std::cerr << "Node count must be positive." << std::endl;
-      return 1;
-    }
+  int node_count = std::atoi(argv[2]);
+  if (node_count <= 0) {
+    std::cerr << "Node count must be positive." << std::endl;
+    return 1;
   }
 
-  int runs = 1;
-  if (argc > 2) {
-    int runs = std::atoi(argv[3]);
-    if (runs <= 0) {
-      std::cerr << "Runs must be positive." << std::endl;
-      return 1;
-    }
+  int runs = std::atoi(argv[3]);
+  if (runs <= 0) {
+    std::cerr << "Runs must be positive." << std::endl;
+    return 1;
   }
+
+  std::string input_file = argv[4];
+  std::string output_file = argv[5];
+
+  read_options_from_file(input_file);
+  prices.resize(options_count);
+  
+  auto start = std::chrono::high_resolution_clock::now();
+
+  switch(version){
+    case Version::SERIAL:
+      run_serial();
+      break;
+    case Version::OPEN_MP:
+      run_openmp();
+      break;
+    default:
+      break;
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+
+  auto duration = std::chrono::duration(end-start);
+
+  std::cout << duration.count() << std::endl;
+
+  write_prices_to_file(output_file);
 }
