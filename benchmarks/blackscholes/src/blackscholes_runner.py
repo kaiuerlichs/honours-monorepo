@@ -3,8 +3,8 @@ import time
 import subprocess
 
 def process_command_line_args():
-    if len(sys.argv) != 6:
-        print("Usage: python blackscholes_runner.py <version_string> <nodes> <runs> <input file> <output file>")
+    if len(sys.argv) < 6:
+        print("Usage: python blackscholes_runner.py <version_string> <nodes> <runs> <input file> <output file> <host file>")
         sys.exit(1)
 
     version = sys.argv[1]
@@ -13,14 +13,18 @@ def process_command_line_args():
     input_file = sys.argv[4]
     output_file = sys.argv[5]
 
-    return version, node_count, runs, input_file, output_file
+    host_file = ""
+    if len(sys.argv) == 7:
+        host_file = sys.argv[6]
+
+    return version, node_count, runs, input_file, output_file, host_file
 
 if __name__ == "__main__":
-    version, node_count, runs, input_file, output_file = process_command_line_args()
+    version, node_count, runs, input_file, output_file, host_file = process_command_line_args()
 
     executable_prefix = ""
     if version in ["openmpi", "hmpcore", "hmpfreq"]:
-        executable_prefix = f'mpiexec -n {node_count} '
+        executable_prefix = f'mpiexec -n {node_count} -hosts {host_file}'
    
     executable_command = f'{executable_prefix}./blackscholes_benchmark {version} {input_file} {output_file}'
 
