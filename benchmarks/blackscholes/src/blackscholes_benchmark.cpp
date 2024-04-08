@@ -228,11 +228,18 @@ void write_prices_to_file(std::string output_file) {
 void run_serial() {
   read_options_from_file(input_file);
   prices.resize(options_count);
+
+  auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < options_count; ++i) {
     prices[i] = BlkSchlsEqEuroNoDiv(options[i].s, options[i].strike,
                                     options[i].r, options[i].v, options[i].t,
                                     options[i].OptionType, 0);
   }
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+
+  std::cout << duration << std::endl;
+
   write_prices_to_file(output_file);
 }
 
@@ -241,12 +248,18 @@ void run_openmp() {
   prices.resize(options_count);
   int threads = omp_get_max_threads();
 
+  auto start = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for num_threads(threads)
   for (int i = 0; i < options_count; ++i) {
     prices[i] = BlkSchlsEqEuroNoDiv(options[i].s, options[i].strike,
                                     options[i].r, options[i].v, options[i].t,
                                     options[i].OptionType, 0);
   }
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+
+  std::cout << duration << std::endl;
+
   write_prices_to_file(output_file);
 }
 
@@ -315,12 +328,16 @@ void run_openmpi() {
                mpi_option_type, local_options.data(), recvcount,
                mpi_option_type, 0, MPI_COMM_WORLD);
 
+  auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < recvcount; ++i) {
     local_prices[i] = BlkSchlsEqEuroNoDiv(
         local_options[i].s, local_options[i].strike, local_options[i].r,
         local_options[i].v, local_options[i].t,
         local_options[i].OptionType == 'C' ? 0 : 1, 0);
   }
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+
 
   prices.resize(options_count);
 
@@ -328,6 +345,7 @@ void run_openmpi() {
               sendcounts.data(), displs.data(), MPI_FLOAT, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
+    std::cout << duration << std::endl;
     write_prices_to_file(output_file);
   }
 
@@ -363,15 +381,21 @@ void run_hmp_core() {
     read_options_from_file(input_file);
 
   auto map = std::make_unique<hmp::Map<OptionData, float>>(
-      cluster, hmp::Distribution::CORE_COUNT);
+      cluster, hmp::Distribution::CORE_FREQUENCY);
   map->set_mpi_in_type(mpi_option_type);
+
+  auto start = std::chrono::high_resolution_clock::now();
   prices = map->execute(options, [](OptionData opt) {
     return BlkSchlsEqEuroNoDiv(opt.s, opt.strike, opt.r, opt.v, opt.t,
                                opt.OptionType == 'C' ? 0 : 1, 0);
   });
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
-  if (cluster->on_master())
+  if (cluster->on_master()) {
+    std::cout << duration << std::endl;
     write_prices_to_file(output_file);
+  }
 }
 
 void run_hmp_freq() {
@@ -404,13 +428,19 @@ void run_hmp_freq() {
   auto map = std::make_unique<hmp::Map<OptionData, float>>(
       cluster, hmp::Distribution::CORE_FREQUENCY);
   map->set_mpi_in_type(mpi_option_type);
+
+  auto start = std::chrono::high_resolution_clock::now();
   prices = map->execute(options, [](OptionData opt) {
     return BlkSchlsEqEuroNoDiv(opt.s, opt.strike, opt.r, opt.v, opt.t,
                                opt.OptionType == 'C' ? 0 : 1, 0);
   });
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
-  if (cluster->on_master())
+  if (cluster->on_master()) {
+    std::cout << duration << std::endl;
     write_prices_to_file(output_file);
+  }
 }
 
 int main(int argc, char *argv[]) {
