@@ -29,6 +29,7 @@ include_directories(${MPI_INCLUDE_PATH})
 # TARGET: blackscholes_benchmark
 set(BLACKSCHOLES_BENCHMARK_FILES
   src/blackscholes_benchmark.cpp
+  src/parsec_blackscholes.h
 )
 
 add_executable(blackscholes_benchmark ${BLACKSCHOLES_BENCHMARK_FILES})
@@ -39,9 +40,3 @@ else()
 endif()
 target_link_libraries(blackscholes_benchmark ${MPI_LIBRARIES})
 
-add_custom_command(
-    TARGET blackscholes_benchmark POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${PROJECT_SOURCE_DIR}/src/blackscholes_runner.py
-        ${CMAKE_CURRENT_BINARY_DIR}/blackscholes_runner.py
-)
