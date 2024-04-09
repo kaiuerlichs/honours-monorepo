@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include <hmp.h>
 #include <hmp/map.h>
