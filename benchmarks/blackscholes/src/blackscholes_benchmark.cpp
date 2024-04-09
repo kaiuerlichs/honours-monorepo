@@ -1,11 +1,11 @@
+#include <chrono>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <chrono>
-#include <iomanip>
 
 #include <hmp.h>
 #include <hmp/map.h>
@@ -101,6 +101,13 @@ void run_serial() {
 
     std::cout << "Finished in " << duration << "ms\n" << std::endl;
   }
+
+  int total_ms = 0;
+  for (int run = 0; run < runs; ++run) {
+    total_ms += run_duration[run];
+  }
+  double average_ms = static_cast<double>(total_ms) / static_cast<double>(runs);
+  std::cout << "Average run duration: " << average_ms << "ms\n" << std::endl;
   write_prices_to_file();
 }
 
@@ -127,6 +134,13 @@ void run_openmp() {
 
     std::cout << "Finished in " << duration << "ms\n" << std::endl;
   }
+  int total_ms = 0;
+  for (int run = 0; run < runs; ++run) {
+    total_ms += run_duration[run];
+  }
+  double average_ms = static_cast<double>(total_ms) / static_cast<double>(runs);
+  std::cout << "Average run duration: " << average_ms << "ms\n" << std::endl;
+
   write_prices_to_file();
 }
 
@@ -146,6 +160,7 @@ void run_openmpi() {
   }
 
   int threads = omp_get_max_threads();
+  MPI_Bcast(&options_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   const int nitems = 9;
   int blocklengths[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
@@ -223,6 +238,14 @@ void run_openmpi() {
   }
 
   if (rank == 0) {
+    int total_ms = 0;
+    for (int run = 0; run < runs; ++run) {
+      total_ms += run_duration[run];
+    }
+    double average_ms =
+        static_cast<double>(total_ms) / static_cast<double>(runs);
+    std::cout << "Average run duration: " << average_ms << "ms\n" << std::endl;
+
     write_prices_to_file();
   }
 
@@ -258,7 +281,8 @@ void run_hmpcore() {
     read_options_from_file();
 
   for (int run = 0; run < runs; ++run) {
-    if (cluster->on_master()) std::cout << "Starting run " << run + 1 << "/" << runs << std::endl;
+    if (cluster->on_master())
+      std::cout << "Starting run " << run + 1 << "/" << runs << std::endl;
 
     auto map = std::make_unique<hmp::Map<OptionData, float>>(
         cluster, hmp::Distribution::CORE_COUNT);
@@ -275,10 +299,19 @@ void run_hmpcore() {
             .count();
     run_duration.push_back(duration);
 
-    if (cluster->on_master()) std::cout << "Finished in " << duration << "ms\n" << std::endl;
+    if (cluster->on_master())
+      std::cout << "Finished in " << duration << "ms\n" << std::endl;
   }
 
   if (cluster->on_master()) {
+    int total_ms = 0;
+    for (int run = 0; run < runs; ++run) {
+      total_ms += run_duration[run];
+    }
+    double average_ms =
+        static_cast<double>(total_ms) / static_cast<double>(runs);
+    std::cout << "Average run duration: " << average_ms << "ms\n" << std::endl;
+
     write_prices_to_file();
   }
 }
@@ -310,7 +343,8 @@ void run_hmpfreq() {
     read_options_from_file();
 
   for (int run = 0; run < runs; ++run) {
-    if (cluster->on_master()) std::cout << "Starting run " << run + 1 << "/" << runs << std::endl;
+    if (cluster->on_master())
+      std::cout << "Starting run " << run + 1 << "/" << runs << std::endl;
 
     auto map = std::make_unique<hmp::Map<OptionData, float>>(
         cluster, hmp::Distribution::CORE_FREQUENCY);
@@ -327,10 +361,19 @@ void run_hmpfreq() {
             .count();
     run_duration.push_back(duration);
 
-    if (cluster->on_master()) std::cout << "Finished in " << duration << "ms\n" << std::endl;
+    if (cluster->on_master())
+      std::cout << "Finished in " << duration << "ms\n" << std::endl;
   }
 
   if (cluster->on_master()) {
+    int total_ms = 0;
+    for (int run = 0; run < runs; ++run) {
+      total_ms += run_duration[run];
+    }
+    double average_ms =
+        static_cast<double>(total_ms) / static_cast<double>(runs);
+    std::cout << "Average run duration: " << average_ms << "ms\n" << std::endl;
+
     write_prices_to_file();
   }
 }
@@ -359,13 +402,6 @@ int main(int argc, char *argv[]) {
   } else if (version == "hmpfreq") {
     run_hmpfreq();
   }
-
-  int total_ms = 0;
-  for (int run = 0; run < runs; ++run) {
-    total_ms += run_duration[run];
-  }
-  double average_ms = static_cast<double>(total_ms) / static_cast<double>(runs);
-  std::cout << "Average run duration: " << average_ms << "ms\n" << std::endl;
 
   return 0;
 }
