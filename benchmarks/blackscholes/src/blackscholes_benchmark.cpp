@@ -214,7 +214,8 @@ void run_openmpi() {
     MPI_Scatterv(options.data(), sendcounts.data(), displs.data(),
                  mpi_option_type, local_options.data(), recvcount,
                  mpi_option_type, 0, MPI_COMM_WORLD);
-
+    
+    #pragma omp parallel for num_threads(threads)
     for (int i = 0; i < recvcount; ++i) {
       local_prices[i] = BlkSchlsEqEuroNoDiv(
           local_options[i].s, local_options[i].strike, local_options[i].r,

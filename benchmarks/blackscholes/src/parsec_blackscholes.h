@@ -75,8 +75,8 @@ inline float CNDF(float InputX) {
 }
 
 inline float BlkSchlsEqEuroNoDiv(float sptprice, float strike, float rate,
-                          float volatility, float time, int otype,
-                          float timet) {
+                                 float volatility, float time, int otype,
+                                 float timet) {
   float OptionPrice;
 
   // local private working variables for the calculation
@@ -100,47 +100,46 @@ inline float BlkSchlsEqEuroNoDiv(float sptprice, float strike, float rate,
   float NofXd2;
   float NegNofXd1;
   float NegNofXd2;
+  for (int i = 0; i < 100; ++i) {
+    xStockPrice = sptprice;
+    xStrikePrice = strike;
+    xRiskFreeRate = rate;
+    xVolatility = volatility;
 
-  xStockPrice = sptprice;
-  xStrikePrice = strike;
-  xRiskFreeRate = rate;
-  xVolatility = volatility;
+    xTime = time;
+    xSqrtTime = sqrt(xTime);
 
-  xTime = time;
-  xSqrtTime = sqrt(xTime);
+    logValues = log(sptprice / strike);
 
-  logValues = log(sptprice / strike);
+    xLogTerm = logValues;
 
-  xLogTerm = logValues;
+    xPowerTerm = xVolatility * xVolatility;
+    xPowerTerm = xPowerTerm * 0.5;
 
-  xPowerTerm = xVolatility * xVolatility;
-  xPowerTerm = xPowerTerm * 0.5;
+    xD1 = xRiskFreeRate + xPowerTerm;
+    xD1 = xD1 * xTime;
+    xD1 = xD1 + xLogTerm;
 
-  xD1 = xRiskFreeRate + xPowerTerm;
-  xD1 = xD1 * xTime;
-  xD1 = xD1 + xLogTerm;
+    xDen = xVolatility * xSqrtTime;
+    xD1 = xD1 / xDen;
+    xD2 = xD1 - xDen;
 
-  xDen = xVolatility * xSqrtTime;
-  xD1 = xD1 / xDen;
-  xD2 = xD1 - xDen;
+    d1 = xD1;
+    d2 = xD2;
 
-  d1 = xD1;
-  d2 = xD2;
+    NofXd1 = CNDF(d1);
+    NofXd2 = CNDF(d2);
 
-  NofXd1 = CNDF(d1);
-  NofXd2 = CNDF(d2);
-
-  FutureValueX = strike * (exp(-(rate) * (time)));
-  if (otype == 0) {
-    OptionPrice = (sptprice * NofXd1) - (FutureValueX * NofXd2);
-  } else {
-    NegNofXd1 = (1.0 - NofXd1);
-    NegNofXd2 = (1.0 - NofXd2);
-    OptionPrice = (FutureValueX * NegNofXd2) - (sptprice * NegNofXd1);
+    FutureValueX = strike * (exp(-(rate) * (time)));
+    if (otype == 0) {
+      OptionPrice = (sptprice * NofXd1) - (FutureValueX * NofXd2);
+    } else {
+      NegNofXd1 = (1.0 - NofXd1);
+      NegNofXd2 = (1.0 - NofXd2);
+      OptionPrice = (FutureValueX * NegNofXd2) - (sptprice * NegNofXd1);
+    }
   }
-
   return OptionPrice;
 }
-
 
 #endif // PARSEC_BLACKSCHOLES_H_
