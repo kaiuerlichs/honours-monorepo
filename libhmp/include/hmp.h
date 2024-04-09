@@ -8,6 +8,7 @@
 #include <regex>
 #include <sstream>
 #include <vector>
+#include <cmath>
 
 #include "mpi.h"
 #include "omp.h"

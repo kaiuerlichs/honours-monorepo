@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <iomanip>
 
 #include <hmp.h>
 #include <hmp/map.h>
