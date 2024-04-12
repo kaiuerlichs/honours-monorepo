@@ -188,7 +188,7 @@ void run_openmpi() {
                  mpi_complex, local_input.data(), recvcount, mpi_complex, 0,
                  MPI_COMM_WORLD);
 
-#pragma omp parallel for collapse(2) num_threads(threads)
+#pragma omp parallel for num_threads(threads)
     for (int i = 0; i < local_input.size(); ++i) {
       local_output[i] = mandelbrot(local_input[i]);
     }
