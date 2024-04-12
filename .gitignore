@@ -1,1 +1,3 @@
 awsconfig/
+.DS_STORE
+.cache/
