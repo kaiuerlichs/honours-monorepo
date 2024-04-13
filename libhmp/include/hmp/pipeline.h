@@ -279,18 +279,23 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
     output_data.resize(input_data.size());
   }
 
+  std::cout << "A" << std::endl;
+
 #pragma omp parallel num_threads(threads)
   {
+    std::cout << "B" << std::endl;
     std::vector<MPI_Request> send_requests;
     STAGE_IN_TYPE item_buffer;
     while (!terminate) {
 #pragma omp critical
       {
+        std::cout << "C" << std::endl;
         int current_seq = expected_seq;
         ++expected_seq;
 
         bool local_terminate = false;
         if (rank == 0) {
+          std::cout << "D" << std::endl;
           if (current_seq >= input_data.size()) {
             local_terminate = true;
             MPI_Send(&profiling_input, 0, output_mpi_type, next_rank,
@@ -299,6 +304,7 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
             item_buffer = input_data[current_seq];
           }
         } else {
+          std::cout << "E" << std::endl;
           bool message_received = false;
           while (!message_received) {
             int flag = 0;
@@ -323,6 +329,7 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
           }
         }
 
+        std::cout << "F" << std::endl;
         if (local_terminate) {
           terminate = true;
         } else {
