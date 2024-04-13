@@ -21,7 +21,7 @@
 namespace hmp {
 
 struct StageAllocation {
-  int self;
+  int self = -1;
   std::vector<int> node_per_stage;
   bool participant = false;
 };
@@ -246,7 +246,6 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
              MPI_STATUS_IGNORE);
   }
 
-  allocation.self = -1;
   for (int i = 0; i < stage_count; ++i) {
     if (allocation.node_per_stage[i] == cluster->get_rank()) {
       allocation.self = i;
@@ -262,8 +261,8 @@ void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
 void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(std::shared_ptr<MPICluster> cluster, StageAllocation allocation, std::any data) {
-  if (allocation.self == -1) {
   std:: cout << "HEYHEYHEHY" << std::endl;
+  if (allocation.self == -1) {
     return;
   }
 
