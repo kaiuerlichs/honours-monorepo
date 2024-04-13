@@ -239,6 +239,7 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
                node_per_stage[stage], 0, MPI_COMM_WORLD);
     }
   } else {
+    node_per_stage.resize(stage_count);
     MPI_Recv(&local_stage, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(node_per_stage.data(), stage_count, MPI_INT, 0, 0, MPI_COMM_WORLD,
              MPI_STATUS_IGNORE);
