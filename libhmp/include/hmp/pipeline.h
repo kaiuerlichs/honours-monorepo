@@ -12,6 +12,7 @@
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
+#include <iostream>
 
 #include "hmp.h"
 #include "hmp/distribution_util.h"
@@ -203,7 +204,6 @@ Pipeline<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
     throw std::invalid_argument(
         "Too many stages: Stage count exceeds node count");
   }
-  printf("STAGE COUNT %d", stage_count);
   profile_stages();
 
   allocate_stages();
