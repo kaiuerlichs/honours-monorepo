@@ -23,6 +23,7 @@ namespace hmp {
 struct StageAllocation {
   int self;
   std::vector<int> node_per_stage;
+  bool participant = false;
 };
 
 struct IStage {
@@ -247,6 +248,8 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
     MPI_Recv(allocation.node_per_stage.data(), stage_count, MPI_INT, 0, 0, MPI_COMM_WORLD,
              MPI_STATUS_IGNORE);
   }
+
+  std::cout << "yolo" << std::endl;
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
