@@ -268,109 +268,41 @@ std::any
 Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
                                                int rank, int prev_rank,
                                                int next_rank, std::any &data) {
-  int expected_seq = 0;
-  bool terminate = false;
-
   std::vector<STAGE_IN_TYPE> input_data;
-  std::vector<STAGE_OUT_TYPE> output_data;
+  int item_count;
+  
+  std::vector<MPI_Request> send_requests;
 
   if (rank == 0) {
-    input_data = std::any_cast<const std::vector<STAGE_IN_TYPE>>(data);
-    output_data.resize(input_data.size());
+    input_data = std::any_cast<std::vector<STAGE_IN_TYPE>>(data);
   }
+  MPI_Bcast(&item_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  std::cout << "A" << std::endl;
-
-#pragma omp parallel num_threads(threads)
-  {
-    std::cout << "B" << std::endl;
-    std::vector<MPI_Request> send_requests;
-    STAGE_IN_TYPE item_buffer;
-    while (!terminate) {
-#pragma omp critical
-      {
-        std::cout << "C" << std::endl;
-        int current_seq = expected_seq;
-        ++expected_seq;
-
-        bool local_terminate = false;
-        if (rank == 0) {
-          std::cout << "D" << std::endl;
-          if (current_seq >= input_data.size()) {
-            local_terminate = true;
-            MPI_Send(&profiling_input, 0, output_mpi_type, next_rank,
-                     MPI_TAG_UB, MPI_COMM_WORLD);
-          } else {
-            item_buffer = input_data[current_seq];
-          }
-        } else {
-          std::cout << "E" << std::endl;
-          bool message_received = false;
-          while (!message_received) {
-            int flag = 0;
-            MPI_Status status;
-
-            MPI_Iprobe(prev_rank, current_seq, MPI_COMM_WORLD, &flag, &status);
-            if (flag) {
-              message_received = true;
-              std::cout << "received data" << std::endl;
-              continue;
-            }
-
-            MPI_Iprobe(prev_rank, -1, MPI_COMM_WORLD, &flag, &status);
-            if (flag) {
-              local_terminate = true;
-              MPI_Recv(&item_buffer, 0, input_mpi_type, 0, MPI_TAG_UB,
-                       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-              MPI_Send(&profiling_input, 0, output_mpi_type, next_rank,
-                       MPI_TAG_UB, MPI_COMM_WORLD);
-              message_received = true;
-              std::cout << "Received terminate" << std::endl;
-              continue;
-            }
-          }
-        }
-
-        std::cout << "F" << std::endl;
-        if (local_terminate) {
-          terminate = true;
-        } else {
-          if (rank != 0) {
-            MPI_Recv(&item_buffer, 1, input_mpi_type, prev_rank, current_seq,
-                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          }
-
-          STAGE_OUT_TYPE return_value = stage_function(item_buffer);
-
-          MPI_Request send_request;
-          MPI_Isend(&return_value, 1, output_mpi_type, next_rank, current_seq,
-                    MPI_COMM_WORLD, &send_request);
-          send_requests.push_back(send_request);
-        }
-      }
+  if (rank == 0) {
+    #pragma omp parallel for num_threads(threads)
+    for (int i = 0; i < item_count; ++i) {
+      STAGE_OUT_TYPE output = stage_function(input_data[i]);
+      MPI_Request request;
+      MPI_Isend(&output, 1, output_mpi_type, next_rank, i, MPI_COMM_WORLD, &request);
+      send_requests.push_back(request);
     }
-
-    if (rank == 0) {
-      STAGE_OUT_TYPE received_item;
+  } else {
+    #pragma omp parallel for num_threads(threads)
+    for (int i = 0; i < item_count; ++i) {
+      STAGE_IN_TYPE input;
       MPI_Status status;
-      int num_items_received = 0;
-      while (num_items_received < input_data.size()) {
-        MPI_Recv(&received_item, 1, output_mpi_type, MPI_ANY_SOURCE,
-                 MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-        if (status.MPI_TAG >= 0) {
-          output_data[status.MPI_TAG] = received_item;
-          num_items_received++;
-        } else {
-          break;
-        }
-      }
-    }
+      MPI_Recv(&input, 1, input_mpi_type, prev_rank, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      int tag = status.MPI_TAG;
 
-    MPI_Waitall(send_requests.size(), send_requests.data(),
-                MPI_STATUSES_IGNORE);
+      STAGE_OUT_TYPE output = stage_function(input);
+
+      MPI_Request request;
+      MPI_Isend(&output, 1, output_mpi_type, next_rank, tag, MPI_COMM_WORLD, &request);
+      send_requests.push_back(request);
+    }
   }
 
-  return std::any(output_data);
+  MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
 }
 
 } // namespace hmp

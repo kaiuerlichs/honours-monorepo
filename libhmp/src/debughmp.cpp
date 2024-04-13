@@ -59,8 +59,8 @@ void test_pipeline() {
 
   auto pipeline = std::make_unique<hmp::Pipeline<int, int>>(cluster, hmp::Distribution::CORE_FREQUENCY);
 
-  pipeline->add_stage<int, int>([](int x) { printf("Stage1"); return x * x; }, 1);
-  pipeline->add_stage<int, int>([](int x) { printf("Stage2"); return x * x; }, 1);
+  pipeline->add_stage<int, int>([](int x) { printf("Stage 1"); return x * x; }, 1);
+  pipeline->add_stage<int, int>([](int x) { printf("Stage 2"); return x * x; }, 1);
 
   std::vector<int> out = pipeline->execute(data);
   if(cluster->on_master()) {
