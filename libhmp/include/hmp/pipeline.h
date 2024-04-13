@@ -257,13 +257,13 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
 
 template <typename IN_TYPE, typename OUT_TYPE>
 void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
-  std:: cout << "HEYHEYHEHY" << std::endl;
   stages[allocation.self]->run_self(cluster, allocation, data);
 }
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
 void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(std::shared_ptr<MPICluster> cluster, StageAllocation allocation, std::any data) {
   if (allocation.self == -1) {
+  std:: cout << "HEYHEYHEHY" << std::endl;
     return;
   }
 
