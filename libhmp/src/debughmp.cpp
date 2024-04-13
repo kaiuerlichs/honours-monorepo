@@ -62,7 +62,10 @@ void test_pipeline() {
   pipeline->add_stage<int, int>([](int x) { printf("Stage1"); return x * x; }, 1);
   pipeline->add_stage<int, int>([](int x) { printf("Stage2"); return x * x; }, 1);
 
-  pipeline->execute(data);
+  std::vector<int> out = pipeline->execute(data);
+  if(cluster->on_master()) {
+    handle_output_data(out);
+  }
 }
 
 int main() {
