@@ -26,7 +26,7 @@ struct IStage {
   virtual const std::type_info &output_type() const = 0;
 
   virtual int profile() = 0;
-  virtual std::any run_self(int stage_number, int threads, int rank,
+  virtual void run_self(int stage_number, int threads, int rank,
                             int prev_rank, int next_rank, std::any &data) = 0;
 
   MPI_Datatype input_mpi_type = MPI_DATATYPE_NULL;
