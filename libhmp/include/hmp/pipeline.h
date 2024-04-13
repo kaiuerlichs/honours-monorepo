@@ -45,7 +45,7 @@ template <typename IN_TYPE, typename OUT_TYPE> struct Stage : IStage {
 
   int profile() override;
 
-  virtual std::any run_self(int stage_number, int threads, int rank,
+  virtual void run_self(int stage_number, int threads, int rank,
                             int prev_rank, int next_rank,
                             std::any &data) override;
 
@@ -264,7 +264,7 @@ Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
 }
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
-std::any
+void
 Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
                                                int rank, int prev_rank,
                                                int next_rank, std::any &data) {
@@ -277,6 +277,8 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
     input_data = std::any_cast<std::vector<STAGE_IN_TYPE>>(data);
   }
   MPI_Bcast(&item_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  
+  std::cout << item_count << std::endl;
 
   if (rank == 0) {
     #pragma omp parallel for num_threads(threads)
