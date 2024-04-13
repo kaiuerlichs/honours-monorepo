@@ -237,16 +237,21 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
 
     allocation.self = 0;
 
-    for (int stage = 1; stage < allocation.node_per_stage.size(); ++stage) {
-      MPI_Send(&stage, 1, MPI_INT, allocation.node_per_stage[stage], 0, MPI_COMM_WORLD);
-      MPI_Send(allocation.node_per_stage.data(), stage_count, MPI_INT,
-               allocation.node_per_stage[stage], 0, MPI_COMM_WORLD);
+    for (int rank = 0; rank < cluster->get_node_count(); ++rank) {
+      MPI_Send(allocation.node_per_stage.data(), stage_count, MPI_INT, rank, 0, MPI_COMM_WORLD);
     }
   } else {
     allocation.node_per_stage.resize(stage_count);
-    MPI_Recv(&allocation.self, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(allocation.node_per_stage.data(), stage_count, MPI_INT, 0, 0, MPI_COMM_WORLD,
              MPI_STATUS_IGNORE);
+  }
+
+  allocation.self = -1;
+  for (int i = 0; i < stage_count; ++i) {
+    if (allocation.node_per_stage[i] == cluster->get_rank()) {
+      allocation.self = i;
+    }
+    break;
   }
 
   std::cout << "yolo" << std::endl;
@@ -259,6 +264,10 @@ void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
 void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(std::shared_ptr<MPICluster> cluster, StageAllocation allocation, std::any data) {
+  if (allocation.self == -1) {
+    return;
+  }
+
   std::vector<STAGE_IN_TYPE> input_data;
   int item_count;
 
