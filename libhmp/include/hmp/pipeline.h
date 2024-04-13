@@ -314,27 +314,29 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number,
 
 template <typename IN_TYPE, typename OUT_TYPE>
 std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data() {
-  MPI_Datatype out_type;
-  std::type_index out_index = std::type_index(typeid(OUT_TYPE));
+  if (cluster->on_master()) {
+    MPI_Datatype out_type;
+    std::type_index out_index = std::type_index(typeid(OUT_TYPE));
 
-  if constexpr (hmputils::is_mpi_primitive<OUT_TYPE>::value) {
-    out_type = hmputils::mpi_type_of<OUT_TYPE>::value();
-  } else if (mpi_type_table.find(out_index) != mpi_type_table.end()) {
-    out_type = mpi_type_table.at(out_index);
+    if constexpr (hmputils::is_mpi_primitive<OUT_TYPE>::value) {
+      out_type = hmputils::mpi_type_of<OUT_TYPE>::value();
+    } else if (mpi_type_table.find(out_index) != mpi_type_table.end()) {
+      out_type = mpi_type_table.at(out_index);
+    }
+
+    std::vector<OUT_TYPE> output_data;
+    output_data.resize(3);
+
+    for (int i = 0; i < output_data.size(); ++i) {
+      MPI_Status status;
+      OUT_TYPE output;
+      MPI_Recv(&output, 1, out_type, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      int index = status.MPI_TAG;
+      output_data[index] = output;
+    }
+
+    return output_data;
   }
-
-  std::vector<OUT_TYPE> output_data;
-  output_data.resize(3);
-
-  for(int i = 0; i < output_data.size(); ++i) {
-    MPI_Status status;
-    OUT_TYPE output;
-    MPI_Recv(&output, 1, out_type, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-    int index = status.MPI_TAG;
-    output_data[index] = output;
-  }
-
-  return output_data;
 }
 
 } // namespace hmp
