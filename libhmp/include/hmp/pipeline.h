@@ -273,6 +273,7 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
 
   if (rank == 0) {
     input_data = std::any_cast<std::vector<STAGE_IN_TYPE>>(data);
+    item_count = input_data.size();
   }
   MPI_Bcast(&item_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
   
