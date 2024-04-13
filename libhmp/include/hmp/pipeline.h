@@ -275,12 +275,12 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
     output_data.resize(input_data.size());
   }
 
-#pragma omp parallel num_threads(threads)
+  #pragma omp parallel num_threads(threads)
   {
     std::vector<MPI_Request> send_requests;
     STAGE_IN_TYPE item_buffer;
-    while (1) {
-#pragma omp critical
+    while (!terminate) {
+      #pragma omp critical
       {
         if (terminate)
           break;
@@ -293,18 +293,19 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
             local_terminate = true;
             MPI_Send(&profiling_input, 0, output_mpi_type, next_rank, MPI_TAG_UB,
                      MPI_COMM_WORLD);
-            break;
           } else {
             item_buffer = input_data[current_seq];
           }
         } else {
-          while (1) {
+          bool message_received = false;
+          while (!message_received) {
             int flag = 0;
             MPI_Status status;
 
             MPI_Iprobe(prev_rank, current_seq, MPI_COMM_WORLD, &flag, &status);
             if (flag) {
-              break;
+              message_received = true;
+              continue;
             }
 
             MPI_Iprobe(prev_rank, -1, MPI_COMM_WORLD, &flag, &status);
@@ -313,14 +314,15 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
               MPI_Recv(&item_buffer, 0, input_mpi_type, 0, MPI_TAG_UB, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
               MPI_Send(&profiling_input, 0, output_mpi_type, next_rank, MPI_TAG_UB,
                        MPI_COMM_WORLD);
-              break;
+              message_received = true;
+              continue;
             }
           }
         }
 
         if (local_terminate) {
           terminate = true;
-          break;
+          continue;
         }
 
         if (rank != 0) {
