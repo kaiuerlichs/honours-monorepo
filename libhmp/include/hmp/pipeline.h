@@ -313,6 +313,7 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
             MPI_Iprobe(prev_rank, current_seq, MPI_COMM_WORLD, &flag, &status);
             if (flag) {
               message_received = true;
+              std::cout << "received data" << std::endl;
               continue;
             }
 
@@ -324,6 +325,7 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
               MPI_Send(&profiling_input, 0, output_mpi_type, next_rank,
                        MPI_TAG_UB, MPI_COMM_WORLD);
               message_received = true;
+              std::cout << "Received terminate" << std::endl;
               continue;
             }
           }
