@@ -253,12 +253,11 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
     }
     break;
   }
-
-  std::cout << "yolo" << std::endl;
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
 void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
+  std:: cout << "HEYHEYHEHY" << std::endl;
   stages[allocation.self]->run_self(cluster, allocation, data);
 }
 
