@@ -208,8 +208,8 @@ Pipeline<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
 
   allocate_stages();
 
-  std::vector<OUT_TYPE> return_data = run_stages(data);
-  // std::vector<OUT_TYPE> return_data;
+  run_stages(data);
+  std::vector<OUT_TYPE> return_data;
   return return_data;
 }
 
