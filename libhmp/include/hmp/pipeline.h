@@ -73,6 +73,7 @@ private:
   void profile_stages();
   void allocate_stages();
   void run_stages(std::vector<IN_TYPE> &data);
+  std::vector<OUT_TYPE> collect_data();
 
 public:
   Pipeline(std::shared_ptr<MPICluster> cluster_ptr, Distribution distribution);
@@ -203,12 +204,14 @@ Pipeline<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
     throw std::invalid_argument(
         "Too many stages: Stage count exceeds node count");
   }
+
   profile_stages();
 
   allocate_stages();
 
   run_stages(data);
-  std::vector<OUT_TYPE> return_data;
+
+  std::vector<OUT_TYPE> return_data = collect_data();
   return return_data;
 }
 
@@ -243,8 +246,6 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
     MPI_Recv(node_per_stage.data(), stage_count, MPI_INT, 0, 0, MPI_COMM_WORLD,
              MPI_STATUS_IGNORE);
   }
-
-  printf("Test");
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
@@ -275,8 +276,6 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number,
     item_count = input_data.size();
   }
   MPI_Bcast(&item_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-  std::cout << item_count << std::endl;
 
   if (rank == 0) {
 #pragma omp parallel for num_threads(threads)
@@ -309,7 +308,33 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number,
   for (auto &reqs : send_requests) {
     merged_requests.insert(merged_requests.end(), reqs.begin(), reqs.end());
   }
-  MPI_Waitall(merged_requests.size(), merged_requests.data(), MPI_STATUSES_IGNORE);
+  MPI_Waitall(merged_requests.size(), merged_requests.data(),
+              MPI_STATUSES_IGNORE);
+}
+
+template <typename IN_TYPE, typename OUT_TYPE>
+std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data() {
+  MPI_Datatype out_type;
+  std::type_index out_index = std::type_index(typeid(OUT_TYPE));
+
+  if constexpr (hmputils::is_mpi_primitive<OUT_TYPE>::value) {
+    out_type = hmputils::mpi_type_of<OUT_TYPE>::value();
+  } else if (mpi_type_table.find(out_index) != mpi_type_table.end()) {
+    out_type = mpi_type_table.at(out_index);
+  }
+
+  std::vector<OUT_TYPE> output_data;
+  output_data.resize(3);
+
+  for(int i = 0; i < output_data.size(); ++i) {
+    MPI_Status status;
+    OUT_TYPE output;
+    MPI_Recv(&output, 1, out_type, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+    int index = status.MPI_TAG;
+    output_data[index] = output;
+  }
+
+  return output_data;
 }
 
 } // namespace hmp
