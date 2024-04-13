@@ -282,8 +282,6 @@ Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number, int threads,
     while (!terminate) {
       #pragma omp critical
       {
-        if (terminate)
-          break;
         int current_seq = expected_seq;
         ++expected_seq;
 
