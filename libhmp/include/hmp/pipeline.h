@@ -314,6 +314,7 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(int stage_number,
 
 template <typename IN_TYPE, typename OUT_TYPE>
 std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data() {
+  std::vector<OUT_TYPE> output_data;
   if (cluster->on_master()) {
     MPI_Datatype out_type;
     std::type_index out_index = std::type_index(typeid(OUT_TYPE));
@@ -324,7 +325,6 @@ std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data() {
       out_type = mpi_type_table.at(out_index);
     }
 
-    std::vector<OUT_TYPE> output_data;
     output_data.resize(3);
 
     for (int i = 0; i < output_data.size(); ++i) {
@@ -334,9 +334,8 @@ std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data() {
       int index = status.MPI_TAG;
       output_data[index] = output;
     }
-
-    return output_data;
   }
+  return output_data;
 }
 
 } // namespace hmp
