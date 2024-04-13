@@ -73,7 +73,7 @@ private:
 
   void profile_stages();
   void allocate_stages();
-  std::vector<OUT_TYPE> run_stages(std::vector<IN_TYPE> &data);
+  void run_stages(std::vector<IN_TYPE> &data);
 
 public:
   Pipeline(std::shared_ptr<MPICluster> cluster_ptr, Distribution distribution);
@@ -249,7 +249,7 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
-std::vector<OUT_TYPE>
+void
 Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
   int threads = cluster->get_local_core_count();
   int rank = cluster->get_rank();
@@ -257,10 +257,8 @@ Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
   int next_rank =
       (local_stage == stage_count - 1) ? 0 : node_per_stage[local_stage + 1];
   std::any any_input = std::any(data);
-  std::any output_data = stages[local_stage]->run_self(
+  stages[local_stage]->run_self(
       local_stage, threads, rank, prev_rank, next_rank, any_input);
-
-  return std::any_cast<std::vector<OUT_TYPE>>(output_data);
 }
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
