@@ -40,7 +40,8 @@ void test_map() {
 
   auto map = std::make_unique<hmp::Map<int, int>>(
       cluster, hmp::Distribution::CORE_FREQUENCY);
-  std::vector<int> return_data = map->execute(data, test);
+  map->set_map_function(test);
+  std::vector<int> return_data = map->execute(data);
 
   if (cluster->on_master())
     handle_output_data(return_data);

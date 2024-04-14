@@ -17,15 +17,17 @@ namespace hmp {
 
 // Processes a 1-dimensional dataset using the Map pattern
 // Example:
-//  std::unique_ptr<Map<int, int>> parallelMap = std::make_unique<Map<int,
-//  int>>(cluster_ptr); std::vector<int> results = parallelMap->execute(inputs,
-//  map_function_ptr);
+//    auto map = std::make_unique<Map<int, int>>(cluster, distribution);
+//    map->set_map_function(function);
+//    std::vector<int> results = map->execute(data);
 template <typename IN_TYPE, typename OUT_TYPE> class Map {
 private:
   std::shared_ptr<MPICluster> cluster;
   std::vector<IN_TYPE> local_data;
   std::vector<OUT_TYPE> local_return_data;
   std::vector<OUT_TYPE> return_data;
+
+  std::function<OUT_TYPE(IN_TYPE)> map_function;
 
   Distribution distribution_type;
 
@@ -35,17 +37,21 @@ private:
   MPI_Datatype mpi_in_type = MPI_DATATYPE_NULL;
   MPI_Datatype mpi_out_type = MPI_DATATYPE_NULL;
 
+  // Distributed data across cluster according to distribution type
   void prepare_data(std::vector<IN_TYPE> &data);
-  void run_map_function(std::function<OUT_TYPE(IN_TYPE)> map_function);
+  void run_map_function();
   void gather_data();
+
+  // Sets the mpi type members
   void load_mpi_types();
 
 public:
   Map(std::shared_ptr<MPICluster> cluster_ptr, Distribution distribution);
   ~Map(){};
 
-  std::vector<OUT_TYPE> execute(std::vector<IN_TYPE> &data,
-                                std::function<OUT_TYPE(IN_TYPE)> map_function);
+  void set_map_function(std::function<OUT_TYPE(IN_TYPE)> func);
+  std::vector<OUT_TYPE> execute(std::vector<IN_TYPE> &data);
+
   void set_mpi_in_type(MPI_Datatype in_type);
   void set_mpi_out_type(MPI_Datatype out_type);
 };
@@ -67,8 +73,7 @@ Map<IN_TYPE, OUT_TYPE>::Map(std::shared_ptr<MPICluster> cluster_ptr, Distributio
 
 template <typename IN_TYPE, typename OUT_TYPE>
 std::vector<OUT_TYPE>
-Map<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data,
-                                std::function<OUT_TYPE(IN_TYPE)> map_function) {
+Map<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
   bool in_type_defined = mpi_in_type != MPI_DATATYPE_NULL;
   bool out_type_defined = mpi_out_type != MPI_DATATYPE_NULL;
 
@@ -110,7 +115,6 @@ void Map<IN_TYPE, OUT_TYPE>::prepare_data(std::vector<IN_TYPE> &data) {
   local_data.resize(items_per_node[cluster->get_rank()]);
   local_return_data.resize(items_per_node[cluster->get_rank()]);
 
-  // TODO: Is this more efficient to calculate on master and bcast?
   // Calculate displacement of blocks per node
   displacements_per_node.resize(items_per_node.size());
   int cumulative_sum = 0;
@@ -127,8 +131,7 @@ void Map<IN_TYPE, OUT_TYPE>::prepare_data(std::vector<IN_TYPE> &data) {
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
-void Map<IN_TYPE, OUT_TYPE>::run_map_function(
-    std::function<OUT_TYPE(IN_TYPE)> map_function) {
+void Map<IN_TYPE, OUT_TYPE>::run_map_function() {
   int thread_count = cluster->get_local_core_count();
 
   #pragma omp parallel for num_threads(thread_count)
@@ -153,6 +156,11 @@ void Map<IN_TYPE, OUT_TYPE>::load_mpi_types() {
   if constexpr (hmputils::is_mpi_primitive<OUT_TYPE>::value) {
     mpi_out_type = hmputils::mpi_type_of<OUT_TYPE>::value();
   }
+}
+
+template <typename IN_TYPE, typename OUT_TYPE>
+void Map<IN_TYPE, OUT_TYPE>::set_map_function(std::function<OUT_TYPE(IN_TYPE)> func) {
+  map_function = func;
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
