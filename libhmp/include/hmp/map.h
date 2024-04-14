@@ -7,11 +7,11 @@
 #include <stdexcept>
 #include <vector>
 
-#include "hmp.h"
+#include <mpi.h>
+
+#include "hmp/core.h"
 #include "hmp/mpi_type_traits.h"
 #include "hmp/distribution_util.h"
-
-#include "mpi.h"
 
 namespace hmp {
 

@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include "hmp.h"
+#include "hmp/core.h"
 
 namespace hmp {
 

@@ -1,22 +1,19 @@
 #ifndef HMP_PIPELINE_H_
 #define HMP_PIPELINE_H_
 
-#include "mpi.h"
-#include <alloca.h>
 #include <any>
 #include <chrono>
-#include <cmath>
-#include <ctime>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
-#include <string>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
 
-#include "hmp.h"
+#include <mpi.h>
+
+#include "hmp/core.h"
 #include "hmp/distribution_util.h"
 #include "hmp/mpi_type_traits.h"
 
