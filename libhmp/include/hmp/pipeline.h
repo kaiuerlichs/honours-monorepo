@@ -2,6 +2,7 @@
 #define HMP_PIPELINE_H_
 
 #include "mpi.h"
+#include <alloca.h>
 #include <any>
 #include <chrono>
 #include <cmath>
@@ -258,6 +259,7 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
   }
 
   for (int i = 0; i < stage_count; ++i) {
+    std::cout << "COMPARE" << allocation.node_per_stage[i] << " " << cluster->get_rank() <<std::endl;
     if (allocation.node_per_stage[i] == cluster->get_rank()) {
       allocation.self = i;
       std::cout << "P" << cluster->get_rank() << " set self to " << i << std::endl;
