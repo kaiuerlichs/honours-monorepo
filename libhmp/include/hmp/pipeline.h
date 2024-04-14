@@ -265,7 +265,8 @@ template <typename IN_TYPE, typename OUT_TYPE>
 void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
   std::cout << allocation.self << std::endl;
   std::cout << data.size() << std::endl;
-  stages[allocation.self]->run_self(cluster, allocation, data);
+  std::any any_data = std::any(data);
+  stages[allocation.self]->run_self(cluster, allocation, any_data);
 }
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
