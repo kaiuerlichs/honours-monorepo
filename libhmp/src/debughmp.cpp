@@ -33,11 +33,7 @@ void handle_output_data(std::vector<int> data) {
   printf("\n");
 }
 
-struct TestData {
-  int a;
-  int b;
-};
-
+// Executes a simple map on an MPI cluster
 void test_map() {
   auto cluster = std::make_shared<hmp::MPICluster>();
   std::vector<int> data;
@@ -53,22 +49,28 @@ void test_map() {
     handle_output_data(return_data);
 }
 
+// Executes a simple pipeline with two stages on an MPI cluster
 void test_pipeline() {
   auto cluster = std::make_shared<hmp::MPICluster>();
-  std::vector<int> data = {1, 2, 3};
+  std::vector<int> data;
+
+  if (cluster->on_master()) 
+    data = generate_test_data();
 
   auto pipeline = std::make_unique<hmp::Pipeline<int, int>>(cluster, hmp::Distribution::CORE_FREQUENCY);
 
-  pipeline->add_stage<int, int>([](int x) { return x * x; }, 1);
-  pipeline->add_stage<int, int>([](int x) { return x * x; }, 1);
+  pipeline->add_stage<int, int>(test, 1);
+  pipeline->add_stage<int, int>(test, 1);
 
   std::vector<int> out = pipeline->execute(data);
+
   if(cluster->on_master()) {
     handle_output_data(out);
   }
 }
 
 int main() {
+  test_map();
   test_pipeline();
   return 0;
 }
