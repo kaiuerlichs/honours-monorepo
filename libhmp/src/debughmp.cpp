@@ -1,11 +1,13 @@
 #include "distribution_util.h"
 #include "hmp.h"
 #include "hmp/map.h"
+#include "hmp/pipeline.h"
 #include "mpi.h"
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <thread>
 #include <vector>
 
 int test(int i) { return i * i; }
@@ -31,7 +33,12 @@ void handle_output_data(std::vector<int> data) {
   printf("\n");
 }
 
-int main() {
+struct TestData {
+  int a;
+  int b;
+};
+
+void test_map() {
   auto cluster = std::make_shared<hmp::MPICluster>();
   std::vector<int> data;
 
@@ -44,6 +51,24 @@ int main() {
 
   if (cluster->on_master())
     handle_output_data(return_data);
+}
 
+void test_pipeline() {
+  auto cluster = std::make_shared<hmp::MPICluster>();
+  std::vector<int> data = {1, 2, 3};
+
+  auto pipeline = std::make_unique<hmp::Pipeline<int, int>>(cluster, hmp::Distribution::CORE_FREQUENCY);
+
+  pipeline->add_stage<int, int>([](int x) { return x * x; }, 1);
+  pipeline->add_stage<int, int>([](int x) { return x * x; }, 1);
+
+  std::vector<int> out = pipeline->execute(data);
+  if(cluster->on_master()) {
+    handle_output_data(out);
+  }
+}
+
+int main() {
+  test_pipeline();
   return 0;
 }

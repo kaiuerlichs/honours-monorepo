@@ -100,7 +100,7 @@ void Map<IN_TYPE, OUT_TYPE>::prepare_data(std::vector<IN_TYPE> &data) {
   
   if (cluster->on_master()) {
     int total_items = data.size();
-    items_per_node = distribution_by_type(total_items, distribution_type, cluster);
+    items_per_node = distribute_items(total_items, distribution_type, cluster);
     return_data.resize(total_items);
   }
 
