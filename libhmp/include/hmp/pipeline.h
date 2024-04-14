@@ -324,11 +324,8 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(
     merged_requests.insert(merged_requests.end(), reqs.begin(), reqs.end());
   }
 
-  std::cout << "waiting on send" << std::endl;
-  std::cout << merged_requests.size() << std::endl;
   MPI_Waitall(merged_requests.size(), merged_requests.data(),
               MPI_STATUSES_IGNORE);
-  std::cout << "done waiting" << std::endl;
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
@@ -336,7 +333,6 @@ std::vector<OUT_TYPE>
 Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) {
   std::vector<OUT_TYPE> output_data;
   if (cluster->on_master()) {
-    std::cout << "Master recv data" <<std::endl;
     MPI_Datatype out_type;
     std::type_index out_index = std::type_index(typeid(OUT_TYPE));
 
@@ -348,7 +344,6 @@ Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) {
 
     output_data.resize(item_count);
     int source_rank = allocation.node_per_stage[stage_count - 1];
-    std::cout << "recv rank " << source_rank << std::endl;
 
     for (int i = 0; i < output_data.size(); ++i) {
       MPI_Status status;
