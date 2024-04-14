@@ -347,6 +347,7 @@ Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) {
 
     output_data.resize(item_count);
     int source_rank = allocation.node_per_stage[stage_count - 1];
+    std::cout << "recv rank " << source_rank << std::endl;
 
     for (int i = 0; i < output_data.size(); ++i) {
       MPI_Status status;
