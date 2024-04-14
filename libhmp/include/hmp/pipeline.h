@@ -323,8 +323,11 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(
   for (auto &reqs : send_requests) {
     merged_requests.insert(merged_requests.end(), reqs.begin(), reqs.end());
   }
+
+  std::cout << "waiting on send" << std::endl;
   MPI_Waitall(merged_requests.size(), merged_requests.data(),
               MPI_STATUSES_IGNORE);
+  std::cout << "done waiting" << std::endl;
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
