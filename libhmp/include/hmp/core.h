@@ -1,13 +1,14 @@
 #ifndef HMP_CORE_H_
 #define HMP_CORE_H_
 
-#include <cstdio>
+#include <cmath>
+#include <iostream>
 #include <fstream>
-#include <sstream>
 #include <memory>
 #include <regex>
+#include <sstream>
+#include <stdexcept>
 #include <vector>
-#include <cmath>
 
 #include <mpi.h>
 #include <omp.h>
@@ -21,6 +22,9 @@ private:
   int processor_frequency;
   char processor_name[MPI_MAX_PROCESSOR_NAME];
   int core_count;
+
+  // Used to check if frequency-scaled distribution is supported
+  // true if node is running linux
   bool os_linux;
 
   void load_rank();
@@ -33,11 +37,13 @@ public:
   Node();
   ~Node(){};
 
+  // Sets class members according to current processor state
   void initialise();
 
   void print_info();
   bool is_master();
   bool is_linux();
+
   int get_rank();
   int get_frequency();
   int get_core_count();
@@ -47,34 +53,38 @@ public:
 };
 
 // Stores information about the MPI cluster global context
+// Example:
+//    auto cluster = std::make_shared<MPICluster>();
+//    // use shared pointer to initialise pattern objects
 class MPICluster {
 private:
+  // Stores a pointer to the local node (the node the process is running on)
   std::shared_ptr<Node> self;
   std::vector<std::shared_ptr<Node>> nodes;
 
   int node_count;
   int core_count;
+
+  // Used to check if frequency-scaled distribution is supported
+  // true if all nodes are running linux
   bool os_linux = true;
 
   void add_node(std::shared_ptr<Node>);
 
-  void send_node();
-  void receive_node();
-
 public:
-  // Constructor/destructor
   MPICluster();
   ~MPICluster();
 
+  void print_info();
   bool on_master();
   bool is_linux();
+
   int get_node_count();
   int get_total_core_count();
   int get_local_core_count();
   std::vector<int> get_cores_per_node();
   std::vector<int> get_frequency_per_node();
   int get_rank();
-  void print_info();
 };
 
 // IMPLEMENTATION
@@ -107,20 +117,20 @@ inline void Node::load_processor_info() {
 }
 
 inline void Node::load_os_type() {
-// TODO: This implementation evaluates OS type on compile time, which might need
-// to be changed to runtime
-#ifdef __linux__
-  os_linux = true;
-#else
-  os_linux = false;
-#endif
+  // Uses compile-type OS detection to set operating system flag
+  #ifdef __linux__
+    os_linux = true;
+  #else
+    os_linux = false;
+  #endif
 }
 
 inline std::string Node::read_cpu_info() {
+  // /proc/cpuinfo stores CPU core frequency in text format
   std::ifstream proc_cpuinfo("/proc/cpuinfo");
 
   if (!proc_cpuinfo.is_open()) {
-    // TODO: Handle file open error
+    throw std::runtime_error("Failed to load CPU frequency");
   }
 
   std::stringstream buffer;
@@ -135,6 +145,7 @@ inline int Node::get_processor_frequency() {
   std::smatch regex_match;
 
   if (std::regex_search(proc_cpuinfo, regex_match, regex_pattern)) {
+    // Reading the first frequency found (cores assumed to be of same frequency)
     float frequency_raw = std::stof(regex_match[1].str());
     return static_cast<int>(std::round(frequency_raw));
   }
@@ -143,8 +154,8 @@ inline int Node::get_processor_frequency() {
 }
 
 inline void Node::print_info() {
-  std::printf("Node information for %s: Rank %i, Cores %i\n", processor_name,
-              process_rank, core_count);
+  std::cout << "Node information for " << processor_name << ": Rank " 
+    << process_rank << ", Cores " << core_count << std::endl;
 }
 
 inline bool Node::is_master() { return process_rank == 0; }
@@ -158,9 +169,9 @@ inline int Node::get_frequency() { return processor_frequency; }
 inline int Node::get_core_count() { return core_count; }
 
 inline MPI_Datatype Node::get_mpi_type() {
-  const int nitems = 5; // Adjusted for the five items we're sending
+  const int nitems = 5;
   int blocklengths[5] = {1, 1, MPI_MAX_PROCESSOR_NAME, 1,
-                         1}; // Added core_count and os_linux (as int)
+                         1};
 
   MPI_Aint displacements[5];
   displacements[0] = offsetof(Node, process_rank);
@@ -184,7 +195,7 @@ inline MPICluster::MPICluster() {
   int thread_support;
   MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &thread_support);
   if (thread_support < MPI_THREAD_MULTIPLE) {
-    printf("Multithreaded MPI not supported. Aborting.");
+    std::cerr << "Multithreaded MPI not supported on architecture - aborting" << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 0);
   }
 
@@ -194,17 +205,19 @@ inline MPICluster::MPICluster() {
   self->initialise();
 
   MPI_Datatype mpi_node_type = self->get_mpi_type();
-
+  
   if (self->is_master()) {
     add_node(self);
+
+    // Receive node information from worker nodes
     for (int i = 1; i < node_count; ++i) {
       auto node = std::make_shared<Node>();
       MPI_Recv(node.get(), 1, mpi_node_type, i, 0, MPI_COMM_WORLD,
                MPI_STATUS_IGNORE);
       add_node(node);
     }
-    print_info();
   } else {
+    // Send node information to master node
     MPI_Send(self.get(), 1, mpi_node_type, 0, 0, MPI_COMM_WORLD);
   }
 }
@@ -254,7 +267,11 @@ inline void MPICluster::print_info() {
   }
 }
 
-inline MPICluster::~MPICluster() { MPI_Finalize(); }
+inline MPICluster::~MPICluster() { 
+  // MPI_Finalize is called when cluster is deconstructed
+  // or goes out of scope
+  MPI_Finalize(); 
+}
 
 } // namespace hmp
 
