@@ -1,14 +1,11 @@
-#include "distribution_util.h"
-#include "hmp.h"
-#include "hmp/map.h"
-#include "hmp/pipeline.h"
-#include "mpi.h"
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include "hmp.h"
 
 int test(int i) { return i * i; }
 
