@@ -32,7 +32,8 @@ struct IStage {
   virtual const std::type_info &output_type() const = 0;
 
   virtual int profile() = 0;
-  virtual void run_self(std::shared_ptr<MPICluster> cluster, StageAllocation allocation, std::any data) = 0;
+  virtual void run_self(std::shared_ptr<MPICluster> cluster,
+                        StageAllocation allocation, std::any data) = 0;
 
   MPI_Datatype input_mpi_type = MPI_DATATYPE_NULL;
   MPI_Datatype output_mpi_type = MPI_DATATYPE_NULL;
@@ -49,14 +50,14 @@ template <typename IN_TYPE, typename OUT_TYPE> struct Stage : IStage {
         MPI_Datatype mpi_out_type, IN_TYPE profiling_in);
 
   int profile() override;
-  virtual void run_self(std::shared_ptr<MPICluster> cluster, StageAllocation allocation, std::any data) override;
+  virtual void run_self(std::shared_ptr<MPICluster> cluster,
+                        StageAllocation allocation, std::any data) override;
 
   const std::type_info &input_type() const override { return typeid(IN_TYPE); }
   const std::type_info &output_type() const override {
     return typeid(OUT_TYPE);
   }
 };
-
 
 template <typename IN_TYPE, typename OUT_TYPE> class Pipeline {
 private:
@@ -69,7 +70,7 @@ private:
   int total_profiling_runtime;
 
   Distribution distribution_type;
-  
+
   StageAllocation allocation;
 
   void profile_stages();
@@ -213,7 +214,10 @@ Pipeline<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
 
   run_stages(data);
 
-  std::vector<OUT_TYPE> return_data = collect_data(data.size());
+  std::vector<OUT_TYPE> return_data;
+  if (cluster->on_master()) {
+    return_data = collect_data(data.size());
+  }
   return return_data;
 }
 
@@ -238,12 +242,13 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
     allocation.self = 0;
 
     for (int rank = 0; rank < cluster->get_node_count(); ++rank) {
-      MPI_Send(allocation.node_per_stage.data(), stage_count, MPI_INT, rank, 0, MPI_COMM_WORLD);
+      MPI_Send(allocation.node_per_stage.data(), stage_count, MPI_INT, rank, 0,
+               MPI_COMM_WORLD);
     }
   } else {
     allocation.node_per_stage.resize(stage_count);
-    MPI_Recv(allocation.node_per_stage.data(), stage_count, MPI_INT, 0, 0, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
+    MPI_Recv(allocation.node_per_stage.data(), stage_count, MPI_INT, 0, 0,
+             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
 
   for (int i = 0; i < stage_count; ++i) {
@@ -260,8 +265,10 @@ void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
 }
 
 template <typename STAGE_IN_TYPE, typename STAGE_OUT_TYPE>
-void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(std::shared_ptr<MPICluster> cluster, StageAllocation allocation, std::any data) {
-  std:: cout << "HEYHEYHEHY" << std::endl;
+void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(
+    std::shared_ptr<MPICluster> cluster, StageAllocation allocation,
+    std::any data) {
+  std::cout << "HEYHEYHEHY" << std::endl;
   if (allocation.self == -1) {
     return;
   }
@@ -281,7 +288,9 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(std::shared_ptr<MPICluster> 
 
   int self_rank = allocation.self;
   int prev_rank = self_rank > 0 ? allocation.node_per_stage[self_rank - 1] : 0;
-  int next_rank = self_rank < allocation.node_per_stage.size() - 1 ? allocation.node_per_stage[self_rank + 1] : 0;
+  int next_rank = self_rank < allocation.node_per_stage.size() - 1
+                      ? allocation.node_per_stage[self_rank + 1]
+                      : 0;
 
   if (cluster->on_master()) {
 #pragma omp parallel for num_threads(threads)
@@ -319,7 +328,8 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(std::shared_ptr<MPICluster> 
 }
 
 template <typename IN_TYPE, typename OUT_TYPE>
-std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) {
+std::vector<OUT_TYPE>
+Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) {
   std::vector<OUT_TYPE> output_data;
   if (cluster->on_master()) {
     MPI_Datatype out_type;
@@ -332,12 +342,13 @@ std::vector<OUT_TYPE> Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) 
     }
 
     output_data.resize(item_count);
-    int source_rank = allocation.node_per_stage[stage_count-1];
+    int source_rank = allocation.node_per_stage[stage_count - 1];
 
     for (int i = 0; i < output_data.size(); ++i) {
       MPI_Status status;
       OUT_TYPE output;
-      MPI_Recv(&output, 1, out_type, source_rank, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      MPI_Recv(&output, 1, out_type, source_rank, MPI_ANY_TAG, MPI_COMM_WORLD,
+               &status);
       int index = status.MPI_TAG;
       output_data[index] = output;
     }
