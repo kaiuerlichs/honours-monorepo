@@ -11,11 +11,14 @@
 
 namespace hmp {
 
+// Defines possible workload distribution methods
 enum class Distribution {
   CORE_COUNT,
   CORE_FREQUENCY,
 };
 
+// Distributed a number of items in a data set across the MPI cluster
+// relative to core count
 inline std::vector<int>
 distribute_items_core_count(int total_items,
                             std::shared_ptr<MPICluster> cluster) {
@@ -38,6 +41,8 @@ distribute_items_core_count(int total_items,
   return distribution;
 }
 
+// Distributes a number of items in a data set across the MPI cluster
+// relative to the core count scaled by core frequency
 inline std::vector<int>
 distribute_items_core_count_frequency(int total_items,
                                       std::shared_ptr<MPICluster> cluster) {
@@ -46,11 +51,13 @@ distribute_items_core_count_frequency(int total_items,
 
   std::vector<int> cores_per_node = cluster->get_cores_per_node();
   std::vector<int> frequency_per_node = cluster->get_frequency_per_node();
-
+  
+  // Node power denotes core count scaled by frequency
   std::vector<int> power_per_node;
   power_per_node.resize(cluster->get_node_count());
-  int cluster_power = 0;
 
+  // Cluster power denotes sum of node powers
+  int cluster_power = 0;
   for (int rank = 0; rank < distribution.size(); ++rank) {
     power_per_node[rank] = cores_per_node[rank] * frequency_per_node[rank];
     cluster_power += power_per_node[rank];
@@ -76,6 +83,8 @@ distribute_items_core_count_frequency(int total_items,
   return distribution;
 }
 
+// Wrapper function to distribute a number of items in a data set across the
+// MPI cluster based on a distribution type
 inline std::vector<int> distribute_items(int total_items, Distribution type,
                                          std::shared_ptr<MPICluster> cluster) {
   switch (type) {
@@ -92,6 +101,11 @@ inline std::vector<int> distribute_items(int total_items, Distribution type,
   }
 }
 
+// Distribute a number of tasks across the MPI cluster based on their weights
+// relative to core count
+//
+// Returns a vector of integers, where indicies correspond to task indices and
+// values correspond to the allocated node
 inline std::vector<int>
 distribute_tasks_core_count(std::vector<float> task_weights,
                             std::shared_ptr<MPICluster> cluster) {
@@ -111,6 +125,7 @@ distribute_tasks_core_count(std::vector<float> task_weights,
     indexed_task_weights.push_back(std::make_pair(task_weights[i], i));
   }
 
+  // Initial stage always runs on master node
   distribution[0] = 0;
   indexed_node_weights.erase(indexed_node_weights.begin());
   indexed_task_weights.erase(indexed_task_weights.begin());
@@ -133,6 +148,11 @@ distribute_tasks_core_count(std::vector<float> task_weights,
   return distribution;
 }
 
+// Distribute a number of tasks across the MPI cluster based on their weights
+// relative to core count scaled by core frequency
+//
+// Returns a vector of integers, where indicies correspond to task indices and
+// values correspond to the allocated node
 inline std::vector<int>
 distribute_tasks_core_count_frequency(std::vector<float> task_weights,
                                       std::shared_ptr<MPICluster> cluster) {
@@ -141,7 +161,9 @@ distribute_tasks_core_count_frequency(std::vector<float> task_weights,
 
   std::vector<int> cores_per_node = cluster->get_cores_per_node();
   std::vector<int> frequency_per_node = cluster->get_frequency_per_node();
-
+  
+  // Cluster power denotes sum of node powers
+  // Node power denotes core count scaled by frequency
   int cluster_power = 0;
   for (int rank = 0; rank < frequency_per_node.size(); ++rank) {
     int power = cores_per_node[rank] * frequency_per_node[rank];
@@ -160,7 +182,8 @@ distribute_tasks_core_count_frequency(std::vector<float> task_weights,
   for (int i = 0; i <= task_weights.size(); ++i) {
     indexed_task_weights.push_back(std::make_pair(task_weights[i], i));
   }
-
+  
+  // Initial stage always runs on master node
   distribution[0] = 0;
   indexed_node_weights.erase(indexed_node_weights.begin());
   indexed_task_weights.erase(indexed_task_weights.begin());
@@ -176,13 +199,15 @@ distribute_tasks_core_count_frequency(std::vector<float> task_weights,
             });
 
   for (int i = 0; i < indexed_task_weights.size(); ++i) {
-    distribution[indexed_task_weights[i].second] =
+    distribution[indexed_task_weights[i].second] = 
         indexed_node_weights[i].second;
   }
 
   return distribution;
 }
 
+// Wrapper function to distribute a number of tasks across the MPI cluster
+// based on a distribution type and their weights
 inline std::vector<int>
 distribute_tasks(std::vector<float> task_weights, Distribution type,
                  std::shared_ptr<MPICluster> cluster) {
