@@ -325,6 +325,7 @@ void Stage<STAGE_IN_TYPE, STAGE_OUT_TYPE>::run_self(
   }
 
   std::cout << "waiting on send" << std::endl;
+  std::cout << merged_requests.size() << std::endl;
   MPI_Waitall(merged_requests.size(), merged_requests.data(),
               MPI_STATUSES_IGNORE);
   std::cout << "done waiting" << std::endl;
