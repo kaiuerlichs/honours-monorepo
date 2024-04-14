@@ -253,18 +253,11 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
              MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
 
-  std::cout << "ALLOC" << cluster->get_rank() << std::endl;
-  for (auto x : allocation.node_per_stage) {
-    std::cout << x << std::endl;
-  }
-
   for (int i = 0; i < stage_count; ++i) {
-    std::cout << "COMPARE" << allocation.node_per_stage[i] << " " << cluster->get_rank() <<std::endl;
     if (allocation.node_per_stage[i] == cluster->get_rank()) {
       allocation.self = i;
-      std::cout << "P" << cluster->get_rank() << " set self to " << i << std::endl;
+      break;
     }
-    break;
   }
 }
 
