@@ -7,12 +7,14 @@
 
 namespace hmputils {
 
+// Type traits to retrive MPI type of primitive types
 template<typename C_TYPE>
 struct is_mpi_primitive : std::false_type {};
 
 template<typename C_TYPE>
 struct mpi_type_of;
 
+// Type trait override macro for primitives
 #define C_MPI_TYPE_MAPPING(C_TYPE, MPI_TYPE)      \
 template<>                                        \
 struct mpi_type_of<C_TYPE> {                      \
@@ -23,6 +25,7 @@ struct mpi_type_of<C_TYPE> {                      \
 template<>                                        \
 struct is_mpi_primitive<C_TYPE> : std::true_type {} 
 
+// Define MPI type mappings for MPI primitive types
 C_MPI_TYPE_MAPPING(int, MPI_INT);
 C_MPI_TYPE_MAPPING(float, MPI_FLOAT);
 C_MPI_TYPE_MAPPING(double, MPI_DOUBLE);
