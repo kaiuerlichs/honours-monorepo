@@ -251,6 +251,7 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
              MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
 
+  std::cout << "ALLOC" << std::endl;
   for (auto x : allocation.node_per_stage) {
     std::cout << x << std::endl;
   }
@@ -265,7 +266,6 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
 
 template <typename IN_TYPE, typename OUT_TYPE>
 void Pipeline<IN_TYPE, OUT_TYPE>::run_stages(std::vector<IN_TYPE> &data) {
-  std::cout << allocation.self << std::endl;
   stages[allocation.self]->run_self(cluster, allocation, data);
 }
 
