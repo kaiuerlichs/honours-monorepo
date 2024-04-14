@@ -251,6 +251,10 @@ void Pipeline<IN_TYPE, OUT_TYPE>::allocate_stages() {
              MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
 
+  for (auto x : allocation.node_per_stage) {
+    std::cout << x << std::endl;
+  }
+
   for (int i = 0; i < stage_count; ++i) {
     if (allocation.node_per_stage[i] == cluster->get_rank()) {
       allocation.self = i;
