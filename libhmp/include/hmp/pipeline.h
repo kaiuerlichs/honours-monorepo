@@ -335,6 +335,7 @@ std::vector<OUT_TYPE>
 Pipeline<IN_TYPE, OUT_TYPE>::collect_data(int item_count) {
   std::vector<OUT_TYPE> output_data;
   if (cluster->on_master()) {
+    std::cout << "Master recv data" <<std::endl;
     MPI_Datatype out_type;
     std::type_index out_index = std::type_index(typeid(OUT_TYPE));
 
