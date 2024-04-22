@@ -1,3 +1,4 @@
+from matplotlib.image import NEAREST
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -11,7 +12,7 @@ with open(filename, 'r') as file:
     width, height = int(first_line[4]), int(first_line[5])
     data = np.array([list(map(int, line.split())) for line in file], dtype=int)
 plt.figure(figsize=(10, 10))
-plt.imshow(data, cmap='hot', extent=(x_min, x_max, y_min, y_max))
+plt.imshow(data, cmap='hot_r', extent=(x_min, x_max, y_min, y_max), interpolation='nearest')
 plt.colorbar()
 plt.title('Mandelbrot Set')
 plt.xlabel('Real Axis')
