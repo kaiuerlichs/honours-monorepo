@@ -238,7 +238,8 @@ void run_hmp(hmp::Distribution d) {
       std::cout << "Starting run " << run + 1 << "/" << runs << std::endl;
     }
     auto start = std::chrono::high_resolution_clock::now();
-    output = map->execute(input, mandelbrot);
+    map->set_map_function(mandelbrot);
+    output = map->execute(input);
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop - start)

@@ -290,10 +290,11 @@ void run_hmpcore() {
     map->set_mpi_in_type(mpi_option_type);
 
     auto start = std::chrono::high_resolution_clock::now();
-    prices = map->execute(options, [](OptionData opt) {
+    map->set_map_function([](OptionData opt) {
       return BlkSchlsEqEuroNoDiv(opt.s, opt.strike, opt.r, opt.v, opt.t,
                                  opt.OptionType == 'C' ? 0 : 1, 0);
     });
+    prices = map->execute(options);
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop - start)
@@ -352,10 +353,11 @@ void run_hmpfreq() {
     map->set_mpi_in_type(mpi_option_type);
 
     auto start = std::chrono::high_resolution_clock::now();
-    prices = map->execute(options, [](OptionData opt) {
+    map->set_map_function([](OptionData opt) {
       return BlkSchlsEqEuroNoDiv(opt.s, opt.strike, opt.r, opt.v, opt.t,
                                  opt.OptionType == 'C' ? 0 : 1, 0);
     });
+    prices = map->execute(options);
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop - start)
