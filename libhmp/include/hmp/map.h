@@ -91,7 +91,7 @@ Map<IN_TYPE, OUT_TYPE>::execute(std::vector<IN_TYPE> &data) {
   }
 
   prepare_data(data);
-  run_map_function(map_function);
+  run_map_function();
   gather_data();
 
   return return_data;
