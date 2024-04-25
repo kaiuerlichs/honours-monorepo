@@ -38,7 +38,7 @@ if __name__ == "__main__":
     try:
         print("[LOCAL] Running mpiexec command on cluster master node.\n")
         ssh_command(client, mpiexec_command)
-        print("[LOCAL] Remote command execution complete.\n")
+        print("\n[LOCAL] Remote command execution complete.\n")
 
         print("[LOCAL] Downloading Mandelbrot set from cluster.\n")
         download_file(client, "mandelbrot.txt", "./mandelbrot.txt")
