@@ -49,7 +49,7 @@ void generate_mandelbrot_input() {
       input[i * width + j] = std::complex<double>(real, imag);
     }
   }
-  std::cout << "Generation complete.\n" << std::endl;
+  std::cout << "Generation complete." << std::endl;
 }
 
 void write_mandelbrot_output() {
@@ -70,7 +70,7 @@ void write_mandelbrot_output() {
     file << "\n";
   }
   file.close();
-  std::cout << "Write complete.\n" << std::endl;
+  std::cout << "Write complete." << std::endl;
 }
 
 MPI_Datatype get_mpi_complex_type() {
@@ -95,7 +95,7 @@ void run_hmp(hmp::Distribution d) {
     gethostname(hostname, 256);
     int thread_count = omp_get_max_threads();
 
-    std::cout << "Hello from node " << hostname << "! Running mandelbrot with " << thread_count << "threads." << std::endl; 
+    std::cout << "Hello from node " << hostname << "! Running mandelbrot with " << thread_count << " threads." << std::endl; 
 
     auto start = std::chrono::high_resolution_clock::now();
     map->set_map_function(mandelbrot);
@@ -107,7 +107,7 @@ void run_hmp(hmp::Distribution d) {
     run_duration.push_back(duration);
 
     if (cluster->on_master()) {
-      std::cout << "Finished in " << duration << "ms.\n" << std::endl;
+      std::cout << "Finished in " << duration << "ms." << std::endl;
     }
   }
 
