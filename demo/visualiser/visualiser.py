@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     norm = Normalize(vmin=np.min(data), vmax=np.max(data))
 
-    plt.figure(figsize=(10, 10))
+    plt.figure(num="Mandelbrot Set", figsize=(6, 6))
     plt.imshow(norm(log_data), cmap='magma_r', extent=(x_min, x_max, y_min, y_max), interpolation='nearest')
     plt.colorbar()
     plt.title('Mandelbrot Set (generated on HMP cluster)')
